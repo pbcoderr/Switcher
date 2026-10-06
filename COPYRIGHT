@@ -1,0 +1,18 @@
+Copyright © 2026 pb_coder. All rights reserved.
+© 2026 pb_coder. Все права защищены.
+
+This notice applies to the Switcher application code and documentation.
+Tailscale and zapret are separate third-party projects. Their names,
+software and associated rights belong to their respective owners.
+
+Acknowledgements:
+Original zapret by bol-van — MIT License.
+https://github.com/bol-van/zapret/blob/master/docs/LICENSE.txt
+
+zapret-discord-youtube by Flowseal and contributors — MIT License.
+The version 1.10.2 notice credits bol-van and Flowseal:
+https://github.com/Flowseal/zapret-discord-youtube/blob/1.10.2/LICENSE.txt
+
+WinDivert used by that distribution has separate LGPLv3/GPLv2 terms,
+as described in the linked upstream license notice.
+These external programs are not bundled with Switcher.
