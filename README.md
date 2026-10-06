@@ -38,7 +38,7 @@ Tailscale и zapret устанавливаются отдельно и не вх
 5. Найди иконку Switcher рядом с часами. Она может быть скрыта под стрелкой системного трея.
 
 ### Первый запуск
-<img width="776" height="643" alt="First-run-preview" src="https://github.com/user-attachments/assets/4407496b-7a8a-4f0c-81ea-b7b132bafe4b" />
+<img width="776" height="643" alt="First-run-preview" src="https://github.com/user-attachments/assets/1c941e69-4112-4259-8f76-12aa6ebd9ba8" />
 
 Если сохранённых настроек нет, автоматически откроется окно **«Первый запуск»**. Папки и стратегия изначально пустые: выбери свою папку Tailscale, папку zapret и нужную стратегию, затем нажми **«Сохранить»**. Горячие клавиши `Ctrl+Alt+F8/F9` предложены как стандартные и доступны для изменения.
 
@@ -61,7 +61,8 @@ Tailscale и zapret устанавливаются отдельно и не вх
 | Посмотреть автора и версию | Правый щелчок → «О программе» |
 | Закрыть переключатель | `Ctrl+Alt+F9` или «Выход» |
 
-<img width="217" height="191" alt="изображение" src="https://github.com/user-attachments/assets/cda764fd-ac7d-458f-b3ef-630a0d54d698" />
+<img width="217" height="190" alt="изображение" src="https://github.com/user-attachments/assets/2f88cb3a-61f9-40cc-b80f-3fefbcfd2146" />
+
 
 Выход из Switcher **не отключает выбранный режим**. Если оба режима выключены, команда переключения включает Tailscale. Если оба включены — выбирает zapret.
 
@@ -69,8 +70,10 @@ Tailscale и zapret устанавливаются отдельно и не вх
 
 | Иконка | Значение |
 |---|---|
-| Синяя **T** <img width="25" height="36" alt="изображение" src="https://github.com/user-attachments/assets/0abe1e15-de29-4d16-ac0e-13353db19d1a" /> | Tailscale подключён, zapret выключен |
-| Зелёная **Z** <img width="24" height="36" alt="изображение" src="https://github.com/user-attachments/assets/edd187b8-92e7-48eb-bd39-89122a993c8f" /> | Служба zapret работает, Tailscale отключён |
+| Синяя **T** <img width="17" height="16" alt="изображение" src="https://github.com/user-attachments/assets/8675aa0a-c608-4e83-972f-0a16135b46dc" />
+ | Tailscale подключён, zapret выключен |
+| Зелёная **Z** <img width="17" height="18" alt="изображение" src="https://github.com/user-attachments/assets/fdcf524c-3559-4379-a28d-300f68b7d4b8" />
+ | Служба zapret работает, Tailscale отключён |
 | Оранжевая **!** | Оба режима включены; выбери нужный через меню |
 | Серая **–** | Оба выключены |
 | Серая **…** | Проверка или переключение |
@@ -78,7 +81,8 @@ Tailscale и zapret устанавливаются отдельно и не вх
 
 Состояние проверяется каждые 5 секунд. Иконка показывает подключение Tailscale и состояние службы zapret, а не доступность конкретного сайта.
 
-<img width="380" height="274" alt="изображение" src="https://github.com/user-attachments/assets/4e64b394-b008-41fd-bc32-2456be92f23b" />
+<img width="377" height="265" alt="изображение" src="https://github.com/user-attachments/assets/e8c2bb1c-dd52-4074-98d6-ad042df1ae16" />
+
 
 ## Настройки
 
