@@ -1,4 +1,5 @@
-# Switcher
+<img width="1280" height="640" alt="github-social-preview-1280x640" src="https://github.com/user-attachments/assets/5e797d80-4c98-441b-9f98-76cdb4efca47" />
+
 
 **Переключатель Tailscale ↔ zapret и маршрутизация сайтов и программ для Windows.**
 
@@ -52,7 +53,8 @@ Tailscale и zapret устанавливаются отдельно и не вх
 5. Найди иконку Switcher рядом с часами. Она может быть скрыта под стрелкой системного трея.
 
 ### Первый запуск
-<img width="776" height="643" alt="First-run-preview" src="https://github.com/user-attachments/assets/1c941e69-4112-4259-8f76-12aa6ebd9ba8" />
+<img width="696" height="489" alt="01-first-launch" src="https://github.com/user-attachments/assets/f9de9119-0d60-4701-a06f-365debc8afb0" />
+
 
 Если сохранённых настроек нет, автоматически откроется окно **«Первый запуск»**. Папки и стратегия изначально пустые: выбери свою папку Tailscale, папку zapret и нужную стратегию, затем нажми **«Сохранить»**. Горячие клавиши `Ctrl+Alt+F8/F9` предложены как стандартные и доступны для изменения.
 
@@ -65,6 +67,7 @@ Tailscale и zapret устанавливаются отдельно и не вх
 Приложение устанавливается в `%ProgramFiles%\TailscaleZapretSwitcher`. Тип запуска службы zapret меняется на **Вручную**, чтобы она не запускалась сама рядом с Tailscale после перезагрузки. Исходный тип запуска сохраняется для удаления переключателя.
 
 ## Управление
+<img width="235" height="335" alt="изображение" src="https://github.com/user-attachments/assets/0d00737f-ee1e-4ab3-9601-90c3ea53beb5" />
 
 | Действие | По умолчанию |
 |---|---|
@@ -73,10 +76,10 @@ Tailscale и zapret устанавливаются отдельно и не вх
 | Выбрать конкретный режим | Правый щелчок → «Включить Tailscale» / «Включить zapret» |
 | Открыть настройки | Правый щелчок → «Настройки…» |
 | Настроить правила сайтов и программ | Правый щелчок → «Маршрутизация…» |
-| Посмотреть автора и версию | Правый щелчок → «О программе» |
+| Быстрое включение/выключение машрутизации | Левый щелчок → «Включить/Выключить маршрутизацию» |
+| Настроить правила сайтов и программ | Левый щелчок → «Помощь» |
 | Закрыть переключатель | `Ctrl+Alt+F9` или «Выход» |
 
-<img width="217" height="190" alt="изображение" src="https://github.com/user-attachments/assets/2f88cb3a-61f9-40cc-b80f-3fefbcfd2146" />
 
 В обычном режиме выход из Switcher **не отключает Tailscale или zapret**. Если оба режима выключены, команда переключения включает Tailscale. Если оба включены — выбирает zapret. В режиме маршрутизации выход удаляет временные исключения; обычный Tailscale остаётся подключённым.
 
@@ -84,21 +87,21 @@ Tailscale и zapret устанавливаются отдельно и не вх
 
 | Иконка | Значение |
 |---|---|
-| Синяя **T** <img width="17" height="16" alt="изображение" src="https://github.com/user-attachments/assets/8675aa0a-c608-4e83-972f-0a16135b46dc" /> | Tailscale подключён, zapret выключен |
-| Зелёная **Z** <img width="17" height="18" alt="изображение" src="https://github.com/user-attachments/assets/fdcf524c-3559-4379-a28d-300f68b7d4b8" /> | Служба zapret работает, Tailscale отключён |
-| Фиолетовая **R** | Работает маршрутизация по правилам |
-| Оранжевая **!** | Оба режима включены; выбери нужный через меню |
-| Серая **–** | Оба выключены |
-| Серая **…** | Проверка или переключение |
-| Красная **?** | Ошибка; открой «Подробности» |
+| Синяя **T** <img width="16" height="16" alt="tray-tailscale-64" src="https://github.com/user-attachments/assets/6c76d1c0-aa6e-45b5-8e83-27212184ab8a" /> | Tailscale подключён, zapret выключен |
+| Зелёная **Z** <img width="16" height="16" alt="tray-zapret-64" src="https://github.com/user-attachments/assets/75899bd2-b9fa-482f-ae58-9c1a1d6f6f35" /> | Служба zapret работает, Tailscale отключён |
+| Фиолетовая **R** <img width="16" height="16" alt="tray-routing-64" src="https://github.com/user-attachments/assets/8967a652-6e10-4a8d-a4fb-013c0e2dc401" />| Работает маршрутизация по правилам |
+| Оранжевая **!** <img width="16" height="16" alt="tray-warning-64" src="https://github.com/user-attachments/assets/161ac492-cebe-4697-a06d-edf53bd51791" /> | Оба режима включены; выбери нужный через меню |
+| Серая **–** <img width="16" height="16" alt="tray-off-64" src="https://github.com/user-attachments/assets/73d2323a-f34f-45ce-a599-c6cbc9b1dfbb" /> | Оба выключены |
+| Серая **…** <img width="16" height="16" alt="tray-busy-64" src="https://github.com/user-attachments/assets/d0ee3e04-6c1f-478a-94de-e82cd4cd2fd9" /> | Проверка или переключение |
+| Красная **?** <img width="16" height="16" alt="tray-error-64" src="https://github.com/user-attachments/assets/5a1d70e6-8d5a-46f2-ad7a-03f47c2e7070" /> | Ошибка; открой «Подробности» |
 
 Состояние проверяется каждые 5 секунд. Иконка показывает подключение Tailscale и состояние службы zapret, а не доступность конкретного сайта.
 
-<img width="377" height="265" alt="изображение" src="https://github.com/user-attachments/assets/e8c2bb1c-dd52-4074-98d6-ad042df1ae16" />
 
 ## Настройки
 
 Открой **«Настройки…»** через меню иконки.
+<img width="696" height="489" alt="02-settings" src="https://github.com/user-attachments/assets/d365a14c-ad7a-4a6b-ae71-9621c04dda90" />
 
 | Поле | Что выбрать |
 |---|---|
@@ -125,6 +128,7 @@ Tailscale и zapret устанавливаются отдельно и не вх
 Switcher читает команду `winws.exe` из выбранного `.bat`, подставляет пути и текущие настройки игрового фильтра. Сам `.bat` и меню `service.bat` не запускаются. Для обычного переключения не требуется повторно выбирать пункты **1** и **11**.
 
 ## Маршрутизация сайтов и программ
+<img width="880" height="510" alt="03-routing" src="https://github.com/user-attachments/assets/9f3f2ca9-1446-4759-8230-a0672309fe20" />
 
 **Включённые записи в списке идут напрямую. Всё остальное — через выбранный exit node Tailscale.** Локальная сеть также доступна напрямую. Выбирать направление для каждой записи не нужно.
 
@@ -153,6 +157,9 @@ Switcher читает команду `winws.exe` из выбранного `.bat
 Кнопка **«.ru / .рф / .su напрямую»** добавляет исключения для этих доменных зон. Это не полный список российских сервисов: дополнительные домены и CDN нужно добавлять отдельно.
 
 ### Импорт списков
+
+<img width="800" height="480" alt="04-import" src="https://github.com/user-attachments/assets/047da685-b072-4527-ab86-0d9eda41ebd9" />
+
 
 Нажми **«Импорт исключений…»**, выбери файл и проверь предварительный просмотр. Импорт добавляет записи к текущим; существующие записи сохраняются. Точные дубликаты пропускаются. Ошибки и конфликтующие записи блокируют весь импорт, чтобы не применять неполный список. Отмена ничего не меняет. После импорта сохрани список и включи маршрутизацию.
 
