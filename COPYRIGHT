@@ -16,11 +16,3 @@ https://github.com/Flowseal/zapret-discord-youtube/blob/1.10.2/LICENSE.txt
 WinDivert used by that distribution has separate LGPLv3/GPLv2 terms,
 as described in the linked upstream license notice.
 These external programs are not bundled with Switcher.
-
-Bundled routing engine: sing-box by nekohasekai and SagerNet contributors.
-GNU General Public License v3.0 or later (GPL-3.0-or-later).
-https://github.com/SagerNet/sing-box/blob/v1.14.2/LICENSE
-Switcher embeds the official sing-box 1.14.2 Windows amd64 archive and starts
-the unmodified engine as a separate process after extracting it locally.
-See Engine/LICENSE, Engine/COPYING, Engine/SOURCE.zip and Engine/SOURCE.md.
-The Switcher copyright notice does not replace the engine's license.
