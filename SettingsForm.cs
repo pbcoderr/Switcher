@@ -54,11 +54,11 @@ namespace Switcher
             MaximizeBox = false;
             switchKey = new HotkeyBox(current.SwitchHotkey);
             exitKey = new HotkeyBox(current.ExitHotkey);
-            root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 6 };
+            root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 6 };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (int height in new[] { 44, 170, 118, 0, 30, 44 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
             Controls.Add(root);
-            var heading = new Label { Text = firstRun ? "Добро пожаловать в Switcher" : "Настрой под себя", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Margin = new Padding(0) };
+            var heading = new Label { Text = firstRun ? "Первый запуск" : "Настройки", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Margin = new Padding(0) };
             root.Controls.Add(heading, 0, 0);
 
             var apps = new GroupBox { Text = "Программы и стратегия", Dock = DockStyle.Fill, Padding = new Padding(14, 22, 14, 12), BackColor = Color.White };
@@ -75,7 +75,7 @@ namespace Switcher
             strategy.DropDownStyle = ComboBoxStyle.DropDownList; strategy.Dock = DockStyle.Top; strategy.Margin = new Padding(4, 10, 4, 0);
             strategy.AccessibleName = "Стратегия zapret";
             table.Controls.Add(strategy, 1, 2);
-            var refresh = new Button { Text = "Обновить", Dock = DockStyle.Top, Height = 30, Margin = new Padding(4, 8, 0, 0) };
+            var refresh = new Button { Text = "Обновить", Dock = DockStyle.Top, Height = 32, Margin = new Padding(4, 8, 4, 0) };
             refresh.Click += delegate { LoadStrategies(Convert.ToString(strategy.SelectedItem)); };
             table.Controls.Add(refresh, 2, 2);
             zapret.Leave += delegate { LoadStrategies(Convert.ToString(strategy.SelectedItem)); };
@@ -96,13 +96,13 @@ namespace Switcher
             note.Visible = false; root.Controls.Add(note, 0, 3);
             error.Dock = DockStyle.Fill; error.ForeColor = AppTheme.Error; error.AutoEllipsis = true;
             root.Controls.Add(error, 0, 4);
-            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
-            save.Text = "Сохранить"; save.Size = new Size(128, 36); save.BackColor = Color.FromArgb(37, 99, 235); save.ForeColor = Color.White; save.FlatStyle = FlatStyle.Flat; save.FlatAppearance.BorderSize = 0;
-            cancel.Text = firstRun ? "Позже" : "Отмена"; cancel.Size = new Size(108, 36); cancel.DialogResult = DialogResult.Cancel;
-            var defaults = new Button { Text = "Клавиши по умолчанию", Size = new Size(196, 36) };
+            save.Text = "Сохранить"; cancel.Text = firstRun ? "Позже" : "Отмена"; cancel.DialogResult = DialogResult.Cancel;
+            var defaults = new Button { Text = "Сброс клавиш" };
             defaults.Click += delegate { switchKey.SetValue(new HotkeySpec(3, Keys.F8)); exitKey.SetValue(new HotkeySpec(3, Keys.F9)); };
-            buttons.Controls.Add(save); buttons.Controls.Add(cancel); buttons.Controls.Add(defaults); var help = new Button { Text = "Помощь", Size = new Size(90, 36) }; help.Click += delegate { HelpForm.Open(this); }; buttons.Controls.Add(help);
+            var help = new Button { Text = "Помощь" }; help.Click += delegate { HelpForm.Open(this); };
+            var buttons = UiLayout.ButtonRow(help, defaults, cancel, save);
             root.Controls.Add(buttons, 0, 5);
+            cancel.Click += delegate { Close(); };
             AcceptButton = save; CancelButton = cancel;
             save.Click += Save;
             AppTheme.Apply(this); AppTheme.Primary(save); note.ForeColor = AppTheme.Muted; error.ForeColor = AppTheme.Error; heading.ForeColor = AppTheme.Blue;
@@ -114,7 +114,7 @@ namespace Switcher
             table.Controls.Add(LabelFor(label), 0, row);
             input.Dock = DockStyle.Top; input.Margin = new Padding(4, 10, 4, 0); input.AccessibleName = label;
             table.Controls.Add(input, 1, row);
-            var browse = new Button { Text = "Обзор…", Dock = DockStyle.Top, Height = 30, Margin = new Padding(4, 8, 0, 0) };
+            var browse = new Button { Text = "Обзор…", Dock = DockStyle.Top, Height = 32, Margin = new Padding(4, 8, 4, 0) };
             browse.Click += delegate {
                 using (var dialog = new FolderBrowserDialog { Description = label, ShowNewFolderButton = false, SelectedPath = Directory.Exists(input.Text) ? input.Text : "" })
                 {

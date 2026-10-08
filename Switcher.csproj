@@ -57,7 +57,7 @@
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
-    <Compile Include="Program.cs" /><Compile Include="HelpForm.cs" /><Compile Include="AutoRoutingPolicy.cs" /><None Include="Tests\AutoRoutingTests.cs" /><Compile Include="AppTheme.cs" /><Compile Include="BrandIcons.cs" /><EmbeddedResource Include="Assets\Switcher.ico"><LogicalName>Switcher.App.ico</LogicalName></EmbeddedResource>
+    <Compile Include="Program.cs" /><Compile Include="ProcessPickerForm.cs" /><Compile Include="UiLayout.cs" /><Compile Include="TunnelAddressPool.cs" /><None Include="Tests\TunnelAddressTests.cs" /><None Include="Tests\LayoutTests.cs" /><Compile Include="HelpForm.cs" /><Compile Include="AutoRoutingPolicy.cs" /><None Include="Tests\AutoRoutingTests.cs" /><None Include="Tests\RoutingUiTests.cs" /><Compile Include="AppTheme.cs" /><Compile Include="BrandIcons.cs" /><EmbeddedResource Include="Assets\Switcher.ico"><LogicalName>Switcher.App.ico</LogicalName></EmbeddedResource>
     <Compile Include="SwitchEngine.cs" />
     <Compile Include="AppSettings.cs" />
     <Compile Include="RoutingSettings.cs" />

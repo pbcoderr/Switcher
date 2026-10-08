@@ -11,6 +11,7 @@ namespace Switcher
     {
         public string PhysicalInterface, TailscaleInterface, PhysicalId, TailscaleId, NodeId, ExitNodeId;
         public uint PhysicalIndex;
+        public string TunnelIPv4 = "172.30.255.1/30";
         public static NativeRoutingPlan Detect(string statusJson)
         {
             var status=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(statusJson);
@@ -28,7 +29,7 @@ namespace Switcher
                 (n.NetworkInterfaceType==NetworkInterfaceType.Ethernet || n.NetworkInterfaceType==NetworkInterfaceType.Wireless80211) &&
                 n.GetIPProperties().GatewayAddresses.Any(g=>g.Address.AddressFamily==System.Net.Sockets.AddressFamily.InterNetwork && g.Address.ToString()!="0.0.0.0")).ToArray();
             if(physical.Length!=1) throw new InvalidOperationException("Нужен один активный интернет-интерфейс с IPv4-шлюзом. Отключи лишнее подключение или VPN перед включением правил.");
-            return new NativeRoutingPlan { PhysicalInterface=physical[0].Name, PhysicalId=physical[0].Id,
+            return new NativeRoutingPlan { TunnelIPv4 = TunnelAddressPool.DetectIPv4(), PhysicalInterface=physical[0].Name, PhysicalId=physical[0].Id,
                 PhysicalIndex=(uint)physical[0].GetIPProperties().GetIPv4Properties().Index, TailscaleInterface=tailscale.Name,
                 TailscaleId=tailscale.Id, NodeId=Convert.ToString(self["ID"]), ExitNodeId=Convert.ToString(exitStatus["ID"]) };
         }

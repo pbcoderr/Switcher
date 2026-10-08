@@ -122,7 +122,7 @@ namespace Switcher
                 if (rule.Kind == "domain") dnsRules.Add(Obj(field, new[] { rule.Value }, "action", "route", "server", "dns-" + rule.Target));
             }
             var inbounds = new List<object> { Obj("type", "mixed", "tag", "probe", "listen", "127.0.0.1", "listen_port", probePort) };
-            if (tunnel) inbounds.Add(Obj("type", "tun", "tag", "switcher-tun", "interface_name", "Switcher-Routing", "address", new[] { "172.30.255.1/30", "fdfe:dcba:9876::1/126" }, "mtu", 1280, "auto_route", true, "strict_route", false, "route_address", new[] { "0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1", "100.100.100.100/32", "fd7a:115c:a1e0::53/128" }));
+            if (tunnel) inbounds.Add(Obj("type", "tun", "tag", "switcher-tun", "interface_name", "Switcher-Routing", "address", new[] { plan.TunnelIPv4, "fdfe:dcba:9876::1/126" }, "mtu", 1280, "auto_route", true, "strict_route", false, "route_address", new[] { "0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1", "100.100.100.100/32", "fd7a:115c:a1e0::53/128" }));
             return Obj(
                 "log", Obj("level", "info", "timestamp", true, "disabled", false),
                 "dns", Obj("servers", new object[] {

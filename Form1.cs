@@ -32,7 +32,14 @@ namespace Switcher
         readonly ToolStripMenuItem zap = new ToolStripMenuItem("Включить zapret");
         readonly ToolStripMenuItem quit = new ToolStripMenuItem("Выход   Ctrl+Alt+F9");
         readonly ToolStripMenuItem preferences = new ToolStripMenuItem("Настройки…");
-        bool switching, refreshing, closing, settingsOpen, hotkeysRegistered, needsSetup;
+        RoutingForm routingWindow;
+        SettingsForm settingsWindow;
+        readonly Dictionary<string, HelpForm> informationWindows = new Dictionary<string, HelpForm>();
+        bool switchingValue, settingsOpenValue;
+        bool RoutingBusy { get { return routingWindow != null && routingWindow.OperationBusy; } }
+        bool switching { get { return switchingValue; } set { switchingValue = value; if (routingWindow != null) routingWindow.SetExternalBusy(value || settingsOpen); } }
+        bool settingsOpen { get { return settingsOpenValue; } set { settingsOpenValue = value; if (routingWindow != null) routingWindow.SetExternalBusy(value || switching); } }
+        bool refreshing, closing, hotkeysRegistered, needsSetup;
         string loadError, autoFailure;
         string details = "Проверка состояния…";
         int generation;
@@ -56,12 +63,13 @@ namespace Switcher
             var menu = new ContextMenuStrip();
             status.Enabled = false;
             menu.Items.AddRange(new ToolStripItem[] { status, new ToolStripSeparator(), toggle, tail, zap, new ToolStripSeparator() });
-            menu.Items.Add("Подробности", null, delegate { using (var dialog = new HelpForm("Подробности · Switcher", details)) dialog.ShowDialog(this); });
+            menu.Items.Add("Подробности", null, delegate { OpenInformation("Подробности · Switcher", details); });
             menu.Items.Add(preferences);
             menu.Items.Add("Маршрутизация…", null, delegate { OpenRouting(); });
-            menu.Items.Add(stopRouting); stopRouting.Click += delegate { StopRoutingFromTray(); };
-            menu.Opening += delegate { stopRouting.Enabled = !switching && !settingsOpen && !closing && (routing.Active || routing.HasRecovery); };
+            menu.Items.Add(stopRouting); stopRouting.Click += delegate { ToggleRoutingFromTray(); };
+            menu.Opening += delegate { UpdateRoutingMenu(); };
             menu.Items.Add("Помощь", null, delegate { HelpForm.Open(this); });
+            menu.Items.Add("О программе", null, delegate { OpenInformation("О программе · Switcher", "Switcher " + Application.ProductVersion + "\r\nАвтор: pb_coder\r\n© 2026 pb_coder. Все права защищены.\r\n\r\nTailscale ↔ zapret и временные исключения маршрутизации.\r\n\r\nСпасибо bol-van — zapret (MIT), Flowseal и участникам zapret-discord-youtube (MIT), nekohasekai и SagerNet — sing-box (GPLv3+).\r\n\r\nСсылки и лицензии — в README."); });
             menu.Items.Add(quit);
             preferences.Click += delegate { OpenSettings(); };
             toggle.Click += delegate { Switch(null); };
@@ -129,7 +137,8 @@ namespace Switcher
         }
         async void RefreshStatus()
         {
-            if (switching || refreshing || closing || settingsOpen || needsSetup) return;
+            if (switching || refreshing || closing || settingsOpen || needsSetup || RoutingBusy) return;
+            if (routingWindow != null && routing.Active) { DisplayRouting(); return; }
             if (routing.Active && !routing.Alive)
             {
                 switching = true; generation++;
@@ -148,13 +157,13 @@ namespace Switcher
             refreshing = true;
             int version = generation;
             WindowsBackend current = backend;
-            try { State s = await Task.Run(() => current.Read()); if (!closing && !switching && !settingsOpen && version == generation) { Display(s); await StartAutomaticRouting(s); } }
-            catch (Exception ex) { if (!closing && !switching && !settingsOpen && version == generation) Error(ex, false); }
+            try { State s = await Task.Run(() => current.Read()); if (!closing && !switching && !settingsOpen && !RoutingBusy && version == generation) { Display(s); if (routingWindow == null && settingsWindow == null) await StartAutomaticRouting(s); } }
+            catch (Exception ex) { if (!closing && !switching && !settingsOpen && !RoutingBusy && version == generation) Error(ex, false); }
             finally { refreshing = false; }
         }
         async void Switch(bool? target)
         {
-            if (switching || closing || settingsOpen) return;
+            if (switching || closing || settingsOpen || RoutingBusy) return;
             if (needsSetup) { OpenSettings(); return; }
             if (routing.HasRecovery) { OpenRouting(); return; }
             switching = true;
@@ -212,7 +221,7 @@ namespace Switcher
 
         async void StopRoutingFromTray()
         {
-            if (switching || settingsOpen || closing || (!routing.Active && !routing.HasRecovery)) return;
+            if (switching || settingsOpen || closing || RoutingBusy || (!routing.Active && !routing.HasRecovery)) return;
             autoRouting.Pause();
             switching = true; generation++;
             toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = stopRouting.Enabled = false;
@@ -239,13 +248,51 @@ namespace Switcher
             tail.Checked = running; zap.Checked = false;
             details = status.Text + "\r\nОткрой «Маршрутизация…» для временных исключений. Обычный Tailscale остаётся подключённым.\r\nПри выходе Switcher удалит временные исключения и адаптер.\r\n\r\n" + routing.Log;
         }
+        void UpdateRoutingMenu()
+        {
+            stopRouting.Text = routing.Active || routing.HasRecovery ? "Выключить маршрутизацию" : "Включить маршрутизацию";
+            stopRouting.Enabled = !switching && !settingsOpen && !closing && !needsSetup && !RoutingBusy;
+        }
+        void SyncRoutingWindow()
+        {
+            UpdateRoutingMenu();
+            if (switching || settingsOpen || closing) return;
+            if (RoutingBusy) { tray.Icon = icons["…"]; tray.Text = "Switcher: обновление маршрутизации"; return; }
+            if (routing.Active || routing.HasRecovery) DisplayRouting();
+            else RefreshStatus();
+        }
+        async void ToggleRoutingFromTray()
+        {
+            if (switching || settingsOpen || closing || RoutingBusy) return;
+            if (needsSetup) { OpenSettings(); return; }
+            if (routingWindow != null) { routingWindow.ToggleRouting(); return; }
+            if (routing.Active || routing.HasRecovery) { StopRoutingFromTray(); return; }
+            autoRouting.Resume(); autoFailure = null;
+            switching = true; generation++;
+            try
+            {
+                var saved = JsonStore.Read<RoutingSettings>(routing.SettingsPath);
+                saved.EnginePath = BundledEngine.FilePath;
+                if (saved.DefaultTarget != "tailscale" || saved.Rules == null || saved.Rules.Exists(rule => rule == null || rule.Target != "direct"))
+                    throw new InvalidDataException("Открой маршрутизацию и сохрани список исключений.");
+                await Task.Run(() => routing.StartRouting(saved, backend));
+                DisplayRouting();
+            }
+            catch (Exception ex) { autoRouting.Failed(DateTime.UtcNow); Error(ex, false); }
+            finally { switching = false; UpdateRoutingMenu(); }
+        }
         void OpenRouting()
         {
+            if (routingWindow != null) { if (routingWindow.WindowState == FormWindowState.Minimized) routingWindow.WindowState = FormWindowState.Normal; routingWindow.Activate(); return; }
             if (switching || settingsOpen || closing) return;
             if (needsSetup) { OpenSettings(); return; }
-            settingsOpen = true; generation++;
-            try { using (var dialog = new RoutingForm(routing, backend)) { dialog.ManualRoutingChange += enabled => { if (enabled) autoRouting.Resume(); else autoRouting.Pause(); }; dialog.ShowDialog(); } }
-            finally { settingsOpen = false; RefreshStatus(); }
+            generation++;
+            routingWindow = new RoutingForm(routing, backend);
+            routingWindow.ManualRoutingChange += enabled => { generation++; autoFailure = null; if (enabled) autoRouting.Resume(); else autoRouting.Pause(); };
+            routingWindow.StateChanged += SyncRoutingWindow;
+            routingWindow.FormClosed += delegate { routingWindow = null; RefreshStatus(); };
+            routingWindow.Show();
+            SyncRoutingWindow();
         }
         void UpdateHotkeyLabels()
         {
@@ -274,16 +321,30 @@ namespace Switcher
             { ClearHotkeys(); error = "Не удалось назначить " + value.ExitHotkey + ": сочетание занято или зарезервировано."; return false; }
             hotkeysRegistered = true; error = null; return true;
         }
+        static void BringForward(Form window)
+        {
+            if (window.WindowState == FormWindowState.Minimized) window.WindowState = FormWindowState.Normal;
+            window.BringToFront(); window.Activate();
+        }
+        void OpenInformation(string title, string text)
+        {
+            HelpForm window;
+            if (informationWindows.TryGetValue(title, out window)) { BringForward(window); return; }
+            window = new HelpForm(title, text);
+            informationWindows.Add(title, window);
+            window.FormClosed += delegate { informationWindows.Remove(title); };
+            window.Show();
+        }
         void OpenSettings()
         {
-            if (!needsSetup && (routing.Active || routing.HasRecovery)) { OpenRouting(); return; }
-            if (switching || settingsOpen || closing) return;
-            settingsOpen = true; generation++;
-            // Release our own combinations so the capture fields can receive them.
-            ClearHotkeys();
-            try
-            {
-                using (var dialog = new SettingsForm(settings.Copy(), async candidate => {
+            if (settingsWindow != null) { BringForward(settingsWindow); return; }
+            if (closing) return;
+            generation++; ClearHotkeys();
+            settingsWindow = new SettingsForm(settings.Copy(), async candidate => {
+                if (switching || RoutingBusy) throw new InvalidOperationException("Дождись завершения переключения.");
+                settingsOpen = true; generation++;
+                try
+                {
                     candidate.Validate();
                     string command = await Task.Run(() => ZapretStrategy.Build(candidate));
                     string keyError;
@@ -300,28 +361,29 @@ namespace Switcher
                             else SettingsStore.Save(candidate);
                         });
                         settings = candidate.Copy(); backend = new WindowsBackend(settings);
+                        if (routingWindow != null) routingWindow.SetBackend(backend);
                         needsSetup = false; loadError = null;
                         toggle.Enabled = tail.Enabled = zap.Enabled = true;
                         UpdateHotkeyLabels(); generation++;
                     }
                     catch { ClearHotkeys(); throw; }
-                }, needsSetup, loadError)) dialog.ShowDialog();
-            }
-            finally
-            {
-                settingsOpen = false;
-                if (!needsSetup && !hotkeysRegistered)
-                {
+                }
+                finally { settingsOpen = false; }
+            }, needsSetup, loadError);
+            settingsWindow.FormClosed += delegate {
+                settingsWindow = null;
+                if (!needsSetup && !hotkeysRegistered && !closing) {
                     string error;
                     if (!TryRegisterHotkeys(settings, out error)) Error(new InvalidOperationException(error), false);
                 }
                 if (needsSetup) DisplaySetupPending();
                 RefreshStatus();
-            }
+            };
+            settingsWindow.Show();
         }
         protected override async void OnFormClosing(FormClosingEventArgs e)
         {
-            if (switching && e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; return; }
+            if ((switching || RoutingBusy || settingsOpen) && e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; return; }
             if (!closing && (routing.Active || routing.HasRecovery))
             {
                 e.Cancel = true; switching = true;

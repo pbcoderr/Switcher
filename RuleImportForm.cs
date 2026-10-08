@@ -23,19 +23,19 @@ namespace Switcher
             this.path = path; this.existing = JsonStore.Clone(new List<RoutingRule>(existing));
             Text = "Импорт исключений — " + Path.GetFileName(path); Font = new Font("Segoe UI", 9F);
             StartPosition = FormStartPosition.CenterParent; Size = new Size(800, 480); MinimumSize = new Size(760, 450);
-            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(14), ColumnCount = 1, RowCount = 6 };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 95)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); Controls.Add(layout);
-            layout.Controls.Add(new Label { Dock = DockStyle.Fill, Text = "TXT / LIST: один сайт или IP на строку. JSON / CSV: сайты или подробные правила.\r\nАдреса https:// преобразуются в домены: путь и порт не учитываются. Поддомены тоже включаются.\r\nНовые правила добавятся в конец. При ошибках или конфликте направлений импорт не применяется." }, 0, 0);
-            layout.Controls.Add(new Label { Dock = DockStyle.Fill, Text = "Из этого списка — напрямую. Всё без правила — через Tailscale.", Font = new Font(Font, FontStyle.Bold) }, 0, 1);
-            foreach (Control explanation in layout.Controls) explanation.Visible = false;
-            layout.Controls.Add(summary, 0, 2);
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 5 };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); Controls.Add(layout);
+            var heading = UiLayout.Heading("Импорт исключений"); layout.Controls.Add(heading, 0, 0);
+            summary.Margin = Padding.Empty; summary.TextAlign = ContentAlignment.MiddleLeft; layout.Controls.Add(summary, 0, 1);
+            preview.Margin = Padding.Empty; errors.Margin = new Padding(0, 8, 0, 4);
             preview.Columns.Add("kind", "Тип"); preview.Columns.Add("value", "Сайт, IP или программа"); preview.Columns.Add("target", "Маршрут"); preview.Columns.Add("enabled", "Включено");
-            preview.Columns[1].FillWeight = 180; layout.Controls.Add(preview, 0, 3); layout.Controls.Add(errors, 0, 4);
-            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft }; buttons.Controls.Add(cancel); buttons.Controls.Add(import); var help = new Button { Text = "Помощь", AutoSize = true }; help.Click += delegate { HelpForm.Open(this); }; buttons.Controls.Add(help); layout.Controls.Add(buttons, 0, 5);
+            preview.Columns[1].FillWeight = 180; layout.Controls.Add(preview, 0, 2); layout.Controls.Add(errors, 0, 3);
+            var help = new Button { Text = "Помощь" }; help.Click += delegate { HelpForm.Open(this); };
+            layout.Controls.Add(UiLayout.ButtonRow(help, cancel, import), 0, 4);
             import.Click += delegate { if (!loading && Result != null && Result.ErrorCount == 0 && Result.Rules.Count > 0) { DialogResult = DialogResult.OK; Close(); } };
             AcceptButton = import; CancelButton = cancel;
-            AppTheme.Apply(this); AppTheme.Primary(import); errors.ForeColor = AppTheme.Muted; import.Padding = cancel.Padding = new Padding(8, 4, 8, 4);
+            AppTheme.Apply(this); AppTheme.Primary(import); errors.ForeColor = AppTheme.Muted; heading.ForeColor = AppTheme.Blue;
             Shown += async delegate { await LoadPreview(); };
         }
         async Task LoadPreview()
