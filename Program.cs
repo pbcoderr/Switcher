@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -26,7 +26,7 @@ namespace Switcher
             var user = WindowsIdentity.GetCurrent();
             if (!new WindowsPrincipal(user).IsInRole(WindowsBuiltInRole.Administrator))
             {
-                MessageBox.Show("Первый запуск: открой Install.cmd и один раз подтверди права администратора.\r\nПосле установки используй ярлык «Tailscale - zapret» на рабочем столе: повторный запрос не нужен.", "Установка переключателя");
+                MessageBox.Show("Запусти Install.cmd. После установки используй ярлык «Tailscale - zapret».", "Установка переключателя");
                 return;
             }
             if (args.Length == 1 && args[0] == "--prepare-engine")

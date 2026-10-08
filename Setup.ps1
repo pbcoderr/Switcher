@@ -137,7 +137,6 @@ try {
     $shortcut.Save()
     Start-ScheduledTask -TaskName $taskName
     Add-Type -AssemblyName System.Windows.Forms
-    [Windows.Forms.MessageBox]::Show('Installed. Find T / Z in the system tray (possibly under the arrow). Right-click it to open Settings: folders, zapret strategy and hotkeys. Default switch key: Ctrl+Alt+F8. Existing settings are preserved. The switcher starts at sign-in.', 'Network Switcher') | Out-Null
 }
 catch {
     Add-Type -AssemblyName System.Windows.Forms

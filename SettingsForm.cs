@@ -48,17 +48,17 @@ namespace Switcher
             BackColor = Color.FromArgb(246, 248, 251);
             ForeColor = Color.FromArgb(30, 41, 59);
             AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(760, 604);
-            MinimumSize = new Size(720, 640);
+            ClientSize = new Size(680, 450);
+            MinimumSize = new Size(696, 489);
             StartPosition = FormStartPosition.CenterScreen;
             MaximizeBox = false;
             switchKey = new HotkeyBox(current.SwitchHotkey);
             exitKey = new HotkeyBox(current.ExitHotkey);
-            root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24), ColumnCount = 1, RowCount = 6 };
+            root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 6 };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            foreach (int height in new[] { 60, 212, 118, 60, 52, 46 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+            foreach (int height in new[] { 44, 170, 118, 0, 30, 44 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
             Controls.Add(root);
-            var heading = new Label { Text = firstRun ? "Добро пожаловать в Switcher" : "Настрой под себя", Font = new Font("Segoe UI", 20, FontStyle.Bold), AutoSize = true, Margin = new Padding(0) };
+            var heading = new Label { Text = firstRun ? "Добро пожаловать в Switcher" : "Настрой под себя", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Margin = new Padding(0) };
             root.Controls.Add(heading, 0, 0);
 
             var apps = new GroupBox { Text = "Программы и стратегия", Dock = DockStyle.Fill, Padding = new Padding(14, 22, 14, 12), BackColor = Color.White };
@@ -92,20 +92,21 @@ namespace Switcher
             switchKey.AccessibleName = "Горячая клавиша переключения"; exitKey.AccessibleName = "Горячая клавиша выхода";
             keyTable.Controls.Add(switchKey, 0, 1); keyTable.Controls.Add(exitKey, 1, 1);
             keys.Controls.Add(keyTable); root.Controls.Add(keys, 0, 2);
-            var note = new Label { Text = "Нажми на поле и введи сочетание с Ctrl или Alt (можно с Shift).\r\nПри смене стратегии работающий zapret кратко перезапустится.", Dock = DockStyle.Fill, ForeColor = Color.FromArgb(71, 85, 105), Margin = new Padding(4, 12, 0, 0) };
-            root.Controls.Add(note, 0, 3);
-            error.Dock = DockStyle.Fill; error.ForeColor = Color.FromArgb(185, 28, 28); error.AutoEllipsis = true;
+            var note = new Label { Text = "Нажми на поле и введи сочетание с Ctrl или Alt (можно с Shift).\r\nПри смене стратегии работающий zapret кратко перезапустится.", Dock = DockStyle.Fill, ForeColor = AppTheme.Muted, Margin = new Padding(4, 12, 0, 0) };
+            note.Visible = false; root.Controls.Add(note, 0, 3);
+            error.Dock = DockStyle.Fill; error.ForeColor = AppTheme.Error; error.AutoEllipsis = true;
             root.Controls.Add(error, 0, 4);
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
             save.Text = "Сохранить"; save.Size = new Size(128, 36); save.BackColor = Color.FromArgb(37, 99, 235); save.ForeColor = Color.White; save.FlatStyle = FlatStyle.Flat; save.FlatAppearance.BorderSize = 0;
             cancel.Text = firstRun ? "Позже" : "Отмена"; cancel.Size = new Size(108, 36); cancel.DialogResult = DialogResult.Cancel;
             var defaults = new Button { Text = "Клавиши по умолчанию", Size = new Size(196, 36) };
             defaults.Click += delegate { switchKey.SetValue(new HotkeySpec(3, Keys.F8)); exitKey.SetValue(new HotkeySpec(3, Keys.F9)); };
-            buttons.Controls.Add(save); buttons.Controls.Add(cancel); buttons.Controls.Add(defaults);
+            buttons.Controls.Add(save); buttons.Controls.Add(cancel); buttons.Controls.Add(defaults); var help = new Button { Text = "Помощь", Size = new Size(90, 36) }; help.Click += delegate { HelpForm.Open(this); }; buttons.Controls.Add(help);
             root.Controls.Add(buttons, 0, 5);
             AcceptButton = save; CancelButton = cancel;
             save.Click += Save;
-            if (firstRun && String.IsNullOrEmpty(startupError)) error.ForeColor = Color.FromArgb(71, 85, 105);
+            AppTheme.Apply(this); AppTheme.Primary(save); note.ForeColor = AppTheme.Muted; error.ForeColor = AppTheme.Error; heading.ForeColor = AppTheme.Blue;
+            if (firstRun && String.IsNullOrEmpty(startupError)) error.ForeColor = AppTheme.Muted;
         }
         static Label LabelFor(string text) { return new Label { Text = text, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(4, 0, 4, 0) }; }
         void AddFolderRow(TableLayoutPanel table, int row, string label, TextBox input, bool isZapret)
@@ -131,12 +132,12 @@ namespace Switcher
                 string[] names = ZapretStrategy.List(zapret.Text.Trim().Trim('"'));
                 strategy.Items.Clear(); strategy.Items.AddRange(names);
                 foreach (string name in names) if (String.Equals(name, preferred, StringComparison.OrdinalIgnoreCase)) { strategy.SelectedItem = name; break; }
-                error.ForeColor = Color.FromArgb(71, 85, 105);
+                error.ForeColor = AppTheme.Muted;
                 error.Text = String.IsNullOrWhiteSpace(zapret.Text) ? "Выбери обе папки и стратегию, затем нажми «Сохранить»." :
                     names.Length == 0 ? "В выбранной папке не найдены .bat-файлы стратегий zapret." :
                     strategy.SelectedIndex < 0 ? "Выбери нужную стратегию zapret из списка." : "";
             }
-            catch (Exception ex) { strategy.Items.Clear(); error.ForeColor = Color.FromArgb(185, 28, 28); error.Text = ex.Message; }
+            catch (Exception ex) { strategy.Items.Clear(); error.ForeColor = AppTheme.Error; error.Text = ex.Message; }
         }
         async void Save(object sender, EventArgs e)
         {
@@ -144,7 +145,7 @@ namespace Switcher
             var candidate = new AppSettings { TailscaleFolder = tailscale.Text, ZapretFolder = zapret.Text, Strategy = Convert.ToString(strategy.SelectedItem), SwitchHotkey = switchKey.Value, ExitHotkey = exitKey.Value };
             saving = true; root.Enabled = false; error.Text = "Применяю настройки…";
             try { await apply(candidate); DialogResult = DialogResult.OK; Close(); }
-            catch (Exception ex) { error.ForeColor = Color.FromArgb(185, 28, 28); error.Text = ex.Message; MessageBox.Show(this, ex.Message, "Настройки не сохранены", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+            catch (Exception ex) { error.ForeColor = AppTheme.Error; error.Text = ex.Message;  }
             finally { saving = false; root.Enabled = true; }
         }
         protected override void OnFormClosing(FormClosingEventArgs e)

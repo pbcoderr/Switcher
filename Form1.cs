@@ -20,6 +20,8 @@ namespace Switcher
     {
         WindowsBackend backend;
         readonly RoutingController routing = new RoutingController(AppDomain.CurrentDomain.BaseDirectory);
+        readonly AutoRoutingPolicy autoRouting = new AutoRoutingPolicy();
+        readonly ToolStripMenuItem stopRouting = new ToolStripMenuItem("Выключить маршрутизацию");
         AppSettings settings;
         readonly NotifyIcon tray = new NotifyIcon();
         readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
@@ -31,7 +33,7 @@ namespace Switcher
         readonly ToolStripMenuItem quit = new ToolStripMenuItem("Выход   Ctrl+Alt+F9");
         readonly ToolStripMenuItem preferences = new ToolStripMenuItem("Настройки…");
         bool switching, refreshing, closing, settingsOpen, hotkeysRegistered, needsSetup;
-        string loadError;
+        string loadError, autoFailure;
         string details = "Проверка состояния…";
         int generation;
 
@@ -44,28 +46,29 @@ namespace Switcher
             settings = startup.Value; needsSetup = startup.NeedsSetup; loadError = startup.Error;
             if (!needsSetup) backend = new WindowsBackend(settings);
             UpdateHotkeyLabels();
-            icons["R"] = MakeIcon("R", Color.FromArgb(124, 58, 237));
-            icons["T"] = MakeIcon("T", Color.FromArgb(37, 99, 235));
-            icons["Z"] = MakeIcon("Z", Color.FromArgb(22, 163, 74));
-            icons["!"] = MakeIcon("!", Color.FromArgb(220, 90, 20));
-            icons["?"] = MakeIcon("?", Color.FromArgb(185, 28, 28));
-            icons["-"] = MakeIcon("–", Color.FromArgb(100, 116, 139));
-            icons["…"] = MakeIcon("…", Color.FromArgb(100, 116, 139));
+            icons["R"] = MakeIcon("R", Color.FromArgb(186, 210, 250));
+            icons["T"] = MakeIcon("T", AppTheme.Blue);
+            icons["Z"] = MakeIcon("Z", Color.FromArgb(157, 220, 223));
+            icons["!"] = MakeIcon("!", Color.FromArgb(246, 203, 145));
+            icons["?"] = MakeIcon("?", AppTheme.Error);
+            icons["-"] = MakeIcon("–", AppTheme.Muted);
+            icons["…"] = MakeIcon("…", AppTheme.Muted);
             var menu = new ContextMenuStrip();
             status.Enabled = false;
             menu.Items.AddRange(new ToolStripItem[] { status, new ToolStripSeparator(), toggle, tail, zap, new ToolStripSeparator() });
-            menu.Items.Add("Подробности", null, delegate { MessageBox.Show(details, "Tailscale ↔ zapret"); });
+            menu.Items.Add("Подробности", null, delegate { using (var dialog = new HelpForm("Подробности · Switcher", details)) dialog.ShowDialog(this); });
             menu.Items.Add(preferences);
             menu.Items.Add("Маршрутизация…", null, delegate { OpenRouting(); });
-            menu.Items.Add("О программе", null, delegate {
-                MessageBox.Show("Switcher " + Application.ProductVersion + "\r\nПереключатель Tailscale ↔ zapret\r\n\r\nАвтор Switcher: pb_coder\r\n© 2026 pb_coder. Все права защищены.\r\n\r\nСпасибо bol-van — автору zapret (MIT License).\r\nСпасибо Flowseal и участникам zapret-discord-youtube (MIT License).\r\nСпасибо nekohasekai и SagerNet за sing-box (GPLv3+).\r\n\r\nСсылки и лицензии сторонних компонентов приведены в README.\r\nTailscale и zapret — отдельные сторонние проекты.", "О программе", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            });
+            menu.Items.Add(stopRouting); stopRouting.Click += delegate { StopRoutingFromTray(); };
+            menu.Opening += delegate { stopRouting.Enabled = !switching && !settingsOpen && !closing && (routing.Active || routing.HasRecovery); };
+            menu.Items.Add("Помощь", null, delegate { HelpForm.Open(this); });
             menu.Items.Add(quit);
             preferences.Click += delegate { OpenSettings(); };
             toggle.Click += delegate { Switch(null); };
             tail.Click += delegate { Switch(true); };
             zap.Click += delegate { Switch(false); };
             quit.Click += delegate { if (!switching) Close(); };
+            AppTheme.Menu(menu);
             tray.ContextMenuStrip = menu;
             tray.Icon = icons["…"];
             tray.Text = "Tailscale ↔ zapret: проверка";
@@ -79,20 +82,7 @@ namespace Switcher
 
         public static Icon MakeIcon(string letter, Color color)
         {
-            using (var bitmap = new Bitmap(32, 32))
-            using (Graphics g = Graphics.FromImage(bitmap))
-            using (var brush = new SolidBrush(color))
-            using (var font = new Font("Segoe UI", 23, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.Clear(Color.Transparent);
-                g.FillEllipse(brush, 0, 0, 31, 31);
-                g.DrawString(letter, font, Brushes.White, new RectangleF(0, -1, 32, 32), format);
-                IntPtr handle = bitmap.GetHicon();
-                try { using (Icon borrowed = Icon.FromHandle(handle)) return (Icon)borrowed.Clone(); }
-                finally { DestroyIcon(handle); }
-            }
+            return BrandIcons.Tray(letter, color);
         }
 
         protected override void SetVisibleCore(bool value) { if (DesignMode || System.ComponentModel.LicenseManager.UsageMode == System.ComponentModel.LicenseUsageMode.Designtime) { base.SetVisibleCore(value); return; } if (!IsHandleCreated) CreateHandle(); base.SetVisibleCore(false); }
@@ -105,7 +95,7 @@ namespace Switcher
                 string hotkeyError;
                 bool registered = TryRegisterHotkeys(settings, out hotkeyError);
                 RefreshStatus();
-                if (!registered) tray.ShowBalloonTip(6000, "Горячие клавиши недоступны", hotkeyError + " Открой настройки в меню иконки.", ToolTipIcon.Warning);
+                if (!registered) Error(new InvalidOperationException(hotkeyError), false);
             }));
         }
         protected override void OnHandleDestroyed(EventArgs e) { ClearHotkeys(); base.OnHandleDestroyed(e); }
@@ -124,6 +114,8 @@ namespace Switcher
             tail.Checked = state.Tailscale;
             zap.Checked = state.Zapret;
             details = "Состояние: " + state.Label + ".\r\nСтратегия: " + settings.Strategy + "\r\n\r\n" + settings.SwitchHotkey + " или двойной щелчок — переключить.\r\n" + settings.ExitHotkey + " — закрыть переключатель.\r\n\r\nИконка показывает состояние подключения Tailscale и службы zapret, а не доступность сайтов.\r\nПри выходе выбранный режим продолжит работать.";
+            if (!state.Tailscale) autoFailure = null;
+            if (state.Tailscale && !state.Zapret && !String.IsNullOrEmpty(autoFailure)) { tray.Icon = icons["?"]; status.Text = "Tailscale · исключения не запущены"; details += "\r\n\r\n" + autoFailure; }
             if (state.Tailscale && state.Zapret) details += "\r\n\r\nОба режима включены извне. Выбери нужный в меню.";
         }
         void Error(Exception ex, bool popup)
@@ -133,7 +125,7 @@ namespace Switcher
             tray.Text = "Tailscale ↔ zapret: ошибка — открой подробности";
             status.Text = "Ошибка проверки / переключения";
             tail.Checked = zap.Checked = false;
-            if (popup) MessageBox.Show(details, "Ошибка переключения", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            // Errors remain visible in the tray status and on-demand details.
         }
         async void RefreshStatus()
         {
@@ -141,15 +133,22 @@ namespace Switcher
             if (routing.Active && !routing.Alive)
             {
                 switching = true; generation++;
-                try { await Task.Run(() => routing.Stop(backend)); tray.ShowBalloonTip(6000, "Маршрутизация остановилась", "Движок завершился. Предыдущие подключения восстановлены.", ToolTipIcon.Warning); }
+                try { await Task.Run(() => routing.Stop(backend)); details = "Маршрутизация остановилась. Временные исключения удалены."; }
                 catch (Exception ex) { Error(ex, false); }
+                finally { switching = false; }
+            }
+            if (routing.Active && routing.Alive)
+            {
+                switching = true;
+                try { await Task.Run(() => routing.CheckConnection(backend)); }
+                catch (Exception ex) { Error(ex, false);  return; }
                 finally { switching = false; }
             }
             if (routing.Active || routing.HasRecovery) { DisplayRouting(); return; }
             refreshing = true;
             int version = generation;
             WindowsBackend current = backend;
-            try { State s = await Task.Run(() => current.Read()); if (!closing && !switching && !settingsOpen && version == generation) Display(s); }
+            try { State s = await Task.Run(() => current.Read()); if (!closing && !switching && !settingsOpen && version == generation) { Display(s); await StartAutomaticRouting(s); } }
             catch (Exception ex) { if (!closing && !switching && !settingsOpen && version == generation) Error(ex, false); }
             finally { refreshing = false; }
         }
@@ -157,7 +156,7 @@ namespace Switcher
         {
             if (switching || closing || settingsOpen) return;
             if (needsSetup) { OpenSettings(); return; }
-            if (routing.Active || routing.HasRecovery) { OpenRouting(); return; }
+            if (routing.HasRecovery) { OpenRouting(); return; }
             switching = true;
             generation++;
             toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = false;
@@ -166,28 +165,86 @@ namespace Switcher
             status.Text = "Переключение…";
             try
             {
+                if (routing.Active) await Task.Run(() => routing.Stop(backend));
                 State s = await Task.Run(() => new SwitchEngine(backend).Switch(target));
+                autoRouting.Resume();
                 Display(s);
-                tray.ShowBalloonTip(2500, "Режим: " + s.Label, "Переключение завершено.", ToolTipIcon.Info);
+                
             }
             catch (Exception ex) { Error(ex, true); }
-            finally { switching = false; toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = true; }
+            finally { switching = false; toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = true; RefreshStatus(); }
         }
+        async Task StartAutomaticRouting(State state)
+        {
+            bool hasRules = false;
+            RoutingSettings saved = null;
+            try
+            {
+                if (!autoRouting.ShouldStart(state, routing.Active, routing.HasRecovery, true, DateTime.UtcNow)) return;
+                saved = JsonStore.Read<RoutingSettings>(routing.SettingsPath);
+                hasRules = saved != null && saved.Rules != null && saved.Rules.Exists(rule => rule != null && rule.Enabled && rule.Target == "direct");
+                if (!autoRouting.ShouldStart(state, routing.Active, routing.HasRecovery, hasRules, DateTime.UtcNow)) return;
+                // Only the built-in engine and the current exceptions schema are used automatically.
+                saved.EnginePath = BundledEngine.FilePath;
+                if (saved.DefaultTarget != "tailscale" || saved.Rules.Exists(rule => rule == null || rule.Target != "direct"))
+                    throw new InvalidDataException("Открой маршрутизацию и сохрани список исключений для автоматического запуска.");
+                switching = true; generation++;
+                toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = false;
+                tray.Icon = icons["…"]; status.Text = "Включаю исключения…";
+                await Task.Run(() => routing.StartRouting(saved, backend));
+
+                DisplayRouting();
+            }
+            catch (Exception ex)
+            {
+                autoRouting.Failed(DateTime.UtcNow); autoFailure = ex.Message;
+                Display(state);
+                details += "\r\n\r\nАвтозапуск исключений: " + ex.Message;
+                status.Text = "Tailscale · исключения не запущены";
+                tray.Icon = icons["?"];
+            }
+            finally
+            {
+                switching = false;
+                toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = true;
+            }
+        }
+
+        async void StopRoutingFromTray()
+        {
+            if (switching || settingsOpen || closing || (!routing.Active && !routing.HasRecovery)) return;
+            autoRouting.Pause();
+            switching = true; generation++;
+            toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = stopRouting.Enabled = false;
+            try
+            {
+                await Task.Run(() => routing.Stop(backend));
+                State current = await Task.Run(() => backend.Read());
+                Display(current);
+            }
+            catch (Exception ex) { Error(ex, false); }
+            finally
+            {
+                switching = false;
+                toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = true;
+            }
+        }
+
         void DisplayRouting()
         {
-            bool running = routing.Tunnel && routing.Alive;
+            bool running = routing.Tunnel && routing.Alive; if (running) autoFailure = null;
             tray.Icon = icons[running ? "R" : "?"];
             status.Text = running ? "Маршрутизация включена" : "Маршрутизация: требуется внимание";
             tray.Text = "Switcher: " + status.Text;
-            tail.Checked = zap.Checked = false;
-            details = status.Text + "\r\nОткрой «Маршрутизация…» для правил, остановки и восстановления подключений.\r\nПри выходе Switcher остановит маршрутизацию и восстановит предыдущий режим.\r\n\r\n" + routing.Log;
+            tail.Checked = running; zap.Checked = false;
+            details = status.Text + "\r\nОткрой «Маршрутизация…» для временных исключений. Обычный Tailscale остаётся подключённым.\r\nПри выходе Switcher удалит временные исключения и адаптер.\r\n\r\n" + routing.Log;
         }
         void OpenRouting()
         {
             if (switching || settingsOpen || closing) return;
             if (needsSetup) { OpenSettings(); return; }
             settingsOpen = true; generation++;
-            try { using (var dialog = new RoutingForm(routing, backend)) dialog.ShowDialog(); }
+            try { using (var dialog = new RoutingForm(routing, backend)) { dialog.ManualRoutingChange += enabled => { if (enabled) autoRouting.Resume(); else autoRouting.Pause(); }; dialog.ShowDialog(); } }
             finally { settingsOpen = false; RefreshStatus(); }
         }
         void UpdateHotkeyLabels()
@@ -256,7 +313,7 @@ namespace Switcher
                 if (!needsSetup && !hotkeysRegistered)
                 {
                     string error;
-                    if (!TryRegisterHotkeys(settings, out error)) tray.ShowBalloonTip(6000, "Горячие клавиши недоступны", error, ToolTipIcon.Warning);
+                    if (!TryRegisterHotkeys(settings, out error)) Error(new InvalidOperationException(error), false);
                 }
                 if (needsSetup) DisplaySetupPending();
                 RefreshStatus();
@@ -289,3 +346,6 @@ namespace Switcher
     }
 
 }
+
+
+

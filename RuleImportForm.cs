@@ -22,18 +22,20 @@ namespace Switcher
         {
             this.path = path; this.existing = JsonStore.Clone(new List<RoutingRule>(existing));
             Text = "Импорт исключений — " + Path.GetFileName(path); Font = new Font("Segoe UI", 9F);
-            StartPosition = FormStartPosition.CenterParent; Size = new Size(840, 660); MinimumSize = new Size(780, 600);
+            StartPosition = FormStartPosition.CenterParent; Size = new Size(800, 480); MinimumSize = new Size(760, 450);
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(14), ColumnCount = 1, RowCount = 6 };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 95)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); Controls.Add(layout);
             layout.Controls.Add(new Label { Dock = DockStyle.Fill, Text = "TXT / LIST: один сайт или IP на строку. JSON / CSV: сайты или подробные правила.\r\nАдреса https:// преобразуются в домены: путь и порт не учитываются. Поддомены тоже включаются.\r\nНовые правила добавятся в конец. При ошибках или конфликте направлений импорт не применяется." }, 0, 0);
             layout.Controls.Add(new Label { Dock = DockStyle.Fill, Text = "Из этого списка — напрямую. Всё без правила — через Tailscale.", Font = new Font(Font, FontStyle.Bold) }, 0, 1);
+            foreach (Control explanation in layout.Controls) explanation.Visible = false;
             layout.Controls.Add(summary, 0, 2);
             preview.Columns.Add("kind", "Тип"); preview.Columns.Add("value", "Сайт, IP или программа"); preview.Columns.Add("target", "Маршрут"); preview.Columns.Add("enabled", "Включено");
             preview.Columns[1].FillWeight = 180; layout.Controls.Add(preview, 0, 3); layout.Controls.Add(errors, 0, 4);
-            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft }; buttons.Controls.Add(cancel); buttons.Controls.Add(import); layout.Controls.Add(buttons, 0, 5);
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft }; buttons.Controls.Add(cancel); buttons.Controls.Add(import); var help = new Button { Text = "Помощь", AutoSize = true }; help.Click += delegate { HelpForm.Open(this); }; buttons.Controls.Add(help); layout.Controls.Add(buttons, 0, 5);
             import.Click += delegate { if (!loading && Result != null && Result.ErrorCount == 0 && Result.Rules.Count > 0) { DialogResult = DialogResult.OK; Close(); } };
             AcceptButton = import; CancelButton = cancel;
+            AppTheme.Apply(this); AppTheme.Primary(import); errors.ForeColor = AppTheme.Muted; import.Padding = cancel.Padding = new Padding(8, 4, 8, 4);
             Shown += async delegate { await LoadPreview(); };
         }
         async Task LoadPreview()

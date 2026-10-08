@@ -1,0 +1,24 @@
+# Visual Studio and build output
+.vs/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local settings and installation state
+settings.json
+settings.json.*.tmp
+installation.json
+routing.json
+routing-*.json
+routing*.tmp
+routing-state/
+
+# Generated packages and local backups
+*.zip
+*.log
+Engine/*.exe
+Engine/*.dll
+!Engine/SOURCE.zip

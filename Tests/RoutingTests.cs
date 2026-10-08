@@ -13,8 +13,9 @@ class RoutingTests
     static void Check(bool condition, string name) { if (!condition) throw new Exception(name); count++; }
     static void Reject(Action action, string name) { bool rejected = false; try { action(); } catch { rejected = true; } Check(rejected, name); }
     static object Field(object obj, string key) { return obj.GetType().GetField(key, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(obj); }
-    sealed class Backend : IBackend
+    sealed class Backend : INativeRoutingBackend
     {
+        public NativeRoutingPlan ReadRoutingPlan() { return new NativeRoutingPlan { PhysicalInterface = "Ethernet", TailscaleInterface = "Tailscale", PhysicalIndex = 5 }; }
         public bool TailOn, ZapOn, FailTail;
         public State Read() { return new State(TailOn, ZapOn); }
         public void Validate() { }
@@ -55,7 +56,7 @@ class RoutingTests
         settings.Rules.Add(new RoutingRule { Kind = "ip", Value = "203.0.113.0/24" });
         settings.Rules.Add(new RoutingRule { Value = "disabled.example", Enabled = false });
         settings.Validate(true);
-        string serialized = new JavaScriptSerializer().Serialize(RoutingConfig.Build(settings, Path.Combine(root, "state"), 23456, true));
+        string serialized = new JavaScriptSerializer().Serialize(RoutingConfig.Build(settings, new Backend().ReadRoutingPlan(), 23456, true));
         Check(serialized.Contains("xn--") == false && serialized.Contains("domain_suffix"), "domain rules emitted");
         Check(serialized.IndexOf("example.ru") < serialized.IndexOf("Discord.exe"), "priority retained");
         Check(!serialized.Contains("disabled.example"), "disabled rules excluded");
@@ -63,23 +64,21 @@ class RoutingTests
         Check(serialized.Contains("\"strategy\":\"ipv4_only\""), "avoid unusable IPv6 answers in an IPv4 tunnel");
         Check(serialized.Contains("hijack-dns") && serialized.Contains("reverse_mapping"), "DNS domain matching enabled");
         Check(serialized.Contains("strict_route") && serialized.Contains("fdfe:"), "dual-stack route and DNS protection");
-        string auth = new JavaScriptSerializer().Serialize(RoutingConfig.Build(settings, Path.Combine(root, "state"), 23456, false));
+        string auth = new JavaScriptSerializer().Serialize(RoutingConfig.Build(settings, new Backend().ReadRoutingPlan(), 23456, false));
+        Check(!serialized.Contains("endpoints") && !serialized.Contains("state_directory"), "no second Tailscale client or node state");
         Check(!auth.Contains("auto_route") && !auth.Contains("switcher-tun"), "login creates no tunnel");
         Check(auth.Contains("127.0.0.1"), "probe listens on loopback only");
         using (var controller = new RoutingController(root)) {
-            controller.Validate(settings); count++; // real sing-box check, no run or networking
-            settings.DefaultTarget = "direct"; controller.Validate(settings); count++;
+            controller.Validate(settings, new Backend()); count++; // real sing-box check, no run or networking
+            settings.DefaultTarget = "direct"; controller.Validate(settings, new Backend()); count++;
             JsonStore.Save(controller.SettingsPath, settings);
             var loaded = JsonStore.Read<RoutingSettings>(controller.SettingsPath);
             Check(loaded.Rules.Count == 4 && loaded.DefaultTarget == "direct", "settings round trip");
             JsonStore.Save(controller.SettingsPath, new RoutingSettings { EnginePath = @"Z:\old-installation\sing-box.exe" });
             using (var form = new RoutingForm(controller, new Backend())) {
                 Check(((Label)Field(form, "engine")).Text.Contains("Встроен"), "bundled engine shown without file picker");
-                Check(((TextBox)Field(form, "exitNode")).Text == "", "no personal server");
-                ((TextBox)Field(form, "exitNode")).Text = "100.64.0.10";
                 var collected = (RoutingSettings)form.GetType().GetMethod("Collect", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
                 Check(collected.EnginePath == BundledEngine.FilePath, "engine selected automatically");
-                ((TextBox)Field(form, "exitNode")).Text = "";
                 var grid = (DataGridView)Field(form, "grid"); Check(grid.Rows.Count == 0, "no rules selected implicitly");
                 grid.Rows.Add(true, "Сайт + поддомены", "ru");
                 grid.Rows.Add(true, "Сайт + поддомены", "рф");
@@ -103,4 +102,5 @@ class RoutingTests
         Console.WriteLine("PASS " + count + " routing checks (no live VPN changes)");
     }
 }
+
 

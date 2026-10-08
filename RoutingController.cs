@@ -50,26 +50,33 @@ namespace Switcher
         Process process;
         ChildJob job;
         int port;
+        NativeRoutingPlan plan;
+        IDisposable firewall;
+        readonly Func<string, uint, IDisposable> firewallFactory;
         volatile bool started;
-        string loginUrl;
+
         public bool Tunnel { get; private set; }
         public bool Active { get { return process != null; } }
         public bool Alive { get { return process != null && !process.HasExited; } }
         public bool HasRecovery { get { return File.Exists(RecoveryPath); } }
-        public string LoginUrl { get { lock (logLock) return loginUrl; } }
+
         public string Log { get { lock (logLock) return String.Join(Environment.NewLine, lines.ToArray()); } }
         public string SettingsPath { get { return Path.Combine(root, "routing.json"); } }
         string RecoveryPath { get { return Path.Combine(root, "routing-recovery.json"); } }
         string RuntimePath { get { return Path.Combine(root, "routing-runtime.json"); } }
-        public RoutingController(string root) { this.root = root; }
-        public void Validate(RoutingSettings settings)
+        public RoutingController(string root) : this(root, (path, index) => new TemporaryFirewall(path, index)) { }
+        public RoutingController(string root, Func<string, uint, IDisposable> firewallFactory) { this.root = root; this.firewallFactory = firewallFactory; }
+        public void Validate(RoutingSettings settings, IBackend backend)
         {
             if (String.Equals(settings.EnginePath, BundledEngine.FilePath, StringComparison.OrdinalIgnoreCase))
                 BundledEngine.EnsureAvailable();
+            var native = backend as INativeRoutingBackend;
+            if (native == null) throw new InvalidOperationException("Недоступно установленное подключение Tailscale.");
+            plan = native.ReadRoutingPlan();
             settings.Validate(true);
             string version = WindowsBackend.Run(settings.EnginePath, "version", 8000);
-            if (!Regex.IsMatch(version, @"sing-box version 1\.14\.\d+\s") || !version.Contains("with_tailscale"))
-                throw new InvalidOperationException("Нужен официальный sing-box 1.14.x с поддержкой Tailscale. Проверенная версия: 1.14.2.");
+            if (!Regex.IsMatch(version, @"sing-box version 1\.14\.\d+\s"))
+                throw new InvalidOperationException("Нужен комплектный sing-box 1.14.2.");
             WriteConfig(settings, false);
             WindowsBackend.Run(settings.EnginePath, "check -c \"" + RuntimePath + "\"", 15000);
             WriteConfig(settings, true);
@@ -82,64 +89,43 @@ namespace Switcher
                 var listener = new TcpListener(IPAddress.Loopback, 0);
                 listener.Start(); port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
             }
-            JsonStore.Save(RuntimePath, RoutingConfig.Build(settings, Path.Combine(root, "routing-state"), port, tunnel));
-        }
-        public void StartLogin(RoutingSettings settings, IBackend backend)
-        {
-            if (Active || HasRecovery) throw new InvalidOperationException("Сначала останови текущий сеанс маршрутизации.");
-            settings = ExitNodes.Resolve(settings, backend);
-            Validate(settings); backend.Validate();
-            State old = backend.Read();
-            JsonStore.Save(RecoveryPath, new RoutingRecovery { Tailscale = old.Tailscale, Zapret = old.Zapret });
-            try { backend.Zap(false); backend.Tail(false); StartChild(settings, false); }
-            catch (Exception failure)
-            {
-                try { Stop(backend); } catch (Exception rollback) { throw new InvalidOperationException(failure.Message + "\r\nВосстановление не завершено: " + rollback.Message, failure); }
-                SaveDiagnostics(failure.Message);
-                throw;
-            }
+            JsonStore.Save(RuntimePath, RoutingConfig.Build(settings, plan, port, tunnel));
         }
         public void StartRouting(RoutingSettings settings, IBackend backend)
         {
-            if (Active || HasRecovery) throw new InvalidOperationException("Сначала останови текущий сеанс или восстанови подключения.");
-            settings = ExitNodes.Resolve(settings, backend);
-            Validate(settings); backend.Validate();
+            if (Active || HasRecovery) throw new InvalidOperationException("Сначала останови текущий сеанс или восстанови старое подключение.");
+            Validate(settings, backend);
             State old = backend.Read();
-            JsonStore.Save(RecoveryPath, new RoutingRecovery { Tailscale = old.Tailscale, Zapret = old.Zapret });
+            if (!old.Tailscale || old.Zapret) throw new InvalidOperationException("Сначала включи обычный Tailscale и отключи zapret.");
             try
             {
-                backend.Zap(false); backend.Tail(false);
-                // Validate login and exit-node connectivity before creating a system tunnel.
+                firewall = firewallFactory(settings.EnginePath, plan.PhysicalIndex);
                 StartChild(settings, false);
-                if (!Probe(30000)) throw new InvalidOperationException("Exit node недоступен. " + (LoginUrl == null ? "Проверь подключение сервера и разрешение устройства switcher-routing." : "Требуется отдельный вход через кнопку «Вход Tailscale»."));
-                StopChild();
+                if (!Probe(15000)) throw new InvalidOperationException("Обычный Tailscale не передаёт трафик через выбранный exit node.");
+                StopProcess();
                 StartChild(settings, true);
-                if (!Probe(15000)) throw new InvalidOperationException("После запуска маршрутизации exit node не ответил.");
+                var windowsFirewall = firewall as TemporaryFirewall;
+                if (windowsFirewall != null) windowsFirewall.AllowTunnel("Switcher-Routing");
+                if (!Probe(15000)) throw new InvalidOperationException("Exit node не ответил после включения правил.");
                 Tunnel = true;
             }
-            catch (Exception failure)
+            catch (Exception failure) { StopChild(); SaveDiagnostics(failure.Message); throw; }
+        }
+        public void CheckConnection(IBackend backend)
+        {
+            if (!Active) return;
+            try
             {
-                try { Stop(backend); }
-                catch (Exception rollback) { throw new InvalidOperationException(failure.Message + "\r\nВосстановление не завершено: " + rollback.Message, failure); }
-                SaveDiagnostics(failure.Message);
-                throw;
+                var native = backend as INativeRoutingBackend;
+                if (native == null || !plan.SameConnection(native.ReadRoutingPlan()))
+                    throw new InvalidOperationException("Подключение изменилось. Включи правила заново.");
             }
+            catch (Exception ex) { StopChild(); SaveDiagnostics(ex.Message); throw; }
         }
         void StartChild(RoutingSettings settings, bool tunnel)
         {
             WriteConfig(settings, tunnel);
-            // The Tailscale node state contains private keys. Do not inherit Users read access.
-            string stateDirectory = Path.Combine(root, "routing-state");
-            if (Directory.Exists(stateDirectory) && (File.GetAttributes(stateDirectory) & FileAttributes.ReparsePoint) != 0)
-                throw new IOException("Папка состояния маршрутизации не должна быть ссылкой.");
-            var security = new DirectorySecurity();
-            security.SetAccessRuleProtection(true, false);
-            foreach (string sid in new[] { "S-1-5-18", "S-1-5-32-544", WindowsIdentity.GetCurrent().User.Value })
-                security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid), FileSystemRights.FullControl,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-            if (!Directory.Exists(stateDirectory)) Directory.CreateDirectory(stateDirectory, security);
-            else Directory.SetAccessControl(stateDirectory, security);
-            lock (logLock) { lines.Clear(); loginUrl = null; }
+            lock (logLock) { lines.Clear(); }
             started = false;
             job = new ChildJob();
             process = new Process { StartInfo = new ProcessStartInfo(settings.EnginePath, "run -c \"" + RuntimePath + "\"") {
@@ -162,9 +148,6 @@ namespace Switcher
             if (line.Contains("sing-box started")) started = true;
             lock (logLock)
             {
-                // Only an official Tailscale HTTPS authentication link can be opened by the UI.
-                var match = Regex.Match(line, @"https://login\.tailscale\.com/[a-zA-Z0-9/_?=&%.-]+");
-                if (match.Success) loginUrl = match.Value;
                 lines.Enqueue(line); while (lines.Count > 160) lines.Dequeue();
             }
         }
@@ -210,7 +193,8 @@ namespace Switcher
             if (restored.Tailscale != old.Tailscale || restored.Zapret != old.Zapret) throw new InvalidOperationException("Не удалось подтвердить восстановление подключений.");
             File.Delete(RecoveryPath);
         }
-        public void StopChild()
+        public void StopChild() { try { StopProcess(); } finally { if (firewall != null) { firewall.Dispose(); firewall = null; } } }
+        void StopProcess()
         {
             if (process != null)
             {
@@ -238,3 +222,6 @@ namespace Switcher
         }
     }
 }
+
+
+

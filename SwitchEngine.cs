@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -70,12 +70,13 @@ namespace Switcher
         }
     }
 
-    public sealed class WindowsBackend : IBackend, IExitNodeSource
+    public sealed class WindowsBackend : IBackend, IExitNodeSource, INativeRoutingBackend
     {
         readonly AppSettings settings;
         string TailExe { get { return settings.TailExe; } }
         string ZapExe { get { return settings.ZapExe; } }
         public WindowsBackend(AppSettings settings) { this.settings = settings.Copy(); }
+        public NativeRoutingPlan ReadRoutingPlan() { return NativeRoutingPlan.Detect(Run(TailExe, "status --json", 8000)); }
         public List<ExitNodeInfo> GetExitNodes() { return ExitNodes.Parse(Run(TailExe, "status --json", 8000)); }
         public static string Run(string file, string args, int timeout)
         {
@@ -208,3 +209,4 @@ namespace Switcher
     }
 
 }
+

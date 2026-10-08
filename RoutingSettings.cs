@@ -72,9 +72,7 @@ namespace Switcher
                 throw new InvalidDataException("Выбери sing-box.exe из официального архива sing-box 1.14.x.");
             if (DefaultTarget != "direct" && DefaultTarget != "tailscale") throw new InvalidDataException("Выбери маршрут по умолчанию.");
             ExitNode = (ExitNode ?? "").Trim();
-            IPAddress ip;
-            if (ExitNode.Length == 0 || (!IPAddress.TryParse(ExitNode, out ip) && !Regex.IsMatch(ExitNode, @"^[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}$")))
-                throw new InvalidDataException("Укажи имя или Tailscale IP своего exit node.");
+            // ExitNode is retained for reading old settings; the official client owns server selection.
             if (Rules == null || Rules.Count > 2000) throw new InvalidDataException("Допускается до 2000 правил.");
             foreach (var rule in Rules) { if (rule == null) throw new InvalidDataException("Пустое правило."); rule.Validate(); }
         }
@@ -104,14 +102,17 @@ namespace Switcher
             for (int i = 0; i < pairs.Length; i += 2) result.Add((string)pairs[i], pairs[i + 1]);
             return result;
         }
-        public static Dictionary<string, object> Build(RoutingSettings value, string stateDirectory, int probePort, bool tunnel)
+        public static Dictionary<string, object> Build(RoutingSettings value, NativeRoutingPlan plan, int probePort, bool tunnel)
         {
             value = value.Copy(); value.Validate(false);
             var rules = new List<object> { Obj("inbound", new[] { "probe" }, "action", "route", "outbound", "tailscale") };
-            var dnsRules = new List<object>();
+            var dnsRules = new List<object> { Obj("domain_suffix", new[] { "ts.net" }, "action", "route", "server", "dns-native") };
+            rules.Add(Obj("process_name", new[] { "tailscaled.exe", "tailscale-ipn.exe" }, "action", "route", "outbound", "direct"));
+
             // DNS must be handled before private-address and user rules.
             rules.Add(Obj("port", 53, "action", "hijack-dns"));
             rules.Add(Obj("action", "sniff"));
+            rules.Add(Obj("ip_cidr", new[] { "100.64.0.0/10", "fd7a:115c:a1e0::/48" }, "action", "route", "outbound", "tailscale"));
             rules.Add(Obj("ip_is_private", true, "action", "route", "outbound", "direct"));
             foreach (var rule in value.Rules)
             {
@@ -121,19 +122,22 @@ namespace Switcher
                 if (rule.Kind == "domain") dnsRules.Add(Obj(field, new[] { rule.Value }, "action", "route", "server", "dns-" + rule.Target));
             }
             var inbounds = new List<object> { Obj("type", "mixed", "tag", "probe", "listen", "127.0.0.1", "listen_port", probePort) };
-            if (tunnel) inbounds.Add(Obj("type", "tun", "tag", "switcher-tun", "interface_name", "Switcher-Routing", "address", new[] { "172.30.255.1/30", "fdfe:dcba:9876::1/126" }, "mtu", 1280, "auto_route", true, "strict_route", true));
+            if (tunnel) inbounds.Add(Obj("type", "tun", "tag", "switcher-tun", "interface_name", "Switcher-Routing", "address", new[] { "172.30.255.1/30", "fdfe:dcba:9876::1/126" }, "mtu", 1280, "auto_route", true, "strict_route", false, "route_address", new[] { "0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1", "100.100.100.100/32", "fd7a:115c:a1e0::53/128" }));
             return Obj(
                 "log", Obj("level", "info", "timestamp", true, "disabled", false),
                 "dns", Obj("servers", new object[] {
-                    Obj("type", "udp", "tag", "dns-direct", "server", "1.1.1.1"),
+                    Obj("type", "udp", "tag", "dns-native", "server", "100.100.100.100", "detour", "tailscale"),
+                    Obj("type", "udp", "tag", "dns-direct", "server", "1.1.1.1", "detour", "direct"),
                     Obj("type", "udp", "tag", "dns-tailscale", "server", "1.1.1.1", "detour", "tailscale") },
                     "rules", dnsRules, "final", "dns-" + (tunnel ? value.DefaultTarget : "direct"), "reverse_mapping", true, "strategy", "ipv4_only"),
                 "inbounds", inbounds,
-                "outbounds", new object[] { Obj("type", "direct", "tag", "direct") },
-                "endpoints", new object[] { Obj("type", "tailscale", "tag", "tailscale", "state_directory", stateDirectory,
-                    "hostname", "switcher-routing", "exit_node", value.ExitNode, "accept_routes", false) },
+                "outbounds", new object[] { Obj("type", "direct", "tag", "direct", "bind_interface", plan.PhysicalInterface), Obj("type", "direct", "tag", "tailscale", "bind_interface", plan.TailscaleInterface) },
                 "route", Obj("auto_detect_interface", true, "default_domain_resolver", "dns-direct", "rules", rules, "final", value.DefaultTarget));
         }
     }
 }
+
+
+
+
 
