@@ -1,0 +1,3 @@
+value,kind,enabled
+example.ru,domain,true
+ExampleApp.exe,process,true
