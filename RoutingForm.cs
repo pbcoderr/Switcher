@@ -14,6 +14,7 @@ namespace Switcher
         readonly RoutingController controller;
         IBackend backend;
         public event Action StateChanged;
+        public event Action ConnectionLost;
         public bool OperationBusy { get { return busy; } }
         bool externalBusy;
         public void SetExternalBusy(bool value) { externalBusy = value; UpdateState(); }
@@ -22,7 +23,7 @@ namespace Switcher
         readonly Label connection = new Label { Text = "Используется подключение и exit node обычного Tailscale.", Dock = DockStyle.Fill };
         readonly Label engine = new Label { Text = "Встроен · sing-box " + BundledEngine.Version, AutoSize = true };
         readonly DataGridView grid = new DataGridView();
-        readonly TextBox log = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill };
+        readonly ConsoleLogBox log = new ConsoleLogBox { Dock = DockStyle.Fill };
         readonly Label state = new Label { AutoSize = true };
         readonly Button start = new Button(), stop = new Button(), save = new Button(), check = new Button();
         readonly Panel editor = new Panel { Dock = DockStyle.Fill };
@@ -101,9 +102,9 @@ namespace Switcher
             catch (Exception ex) { notice = "Ошибка чтения правил: " + ex.Message; }
             timer.Tick += async delegate {
                 if (!busy && !externalBusy && controller.Active && !controller.Alive)
-                    await WorkAsync(() => controller.Stop(backend), "Движок завершился. Временные исключения удалены.");
+                    { if (ConnectionLost != null) ConnectionLost(); await WorkAsync(delegate { controller.Stop(backend); }, "Движок завершился. Временные исключения удалены."); }
                 if (!busy && !externalBusy && controller.Active && controller.Alive && ++healthTicks % 5 == 0)
-                    await WorkAsync(() => controller.CheckConnection(backend), notice);
+                    await CheckHealth();
                 UpdateState();
             }; AppTheme.Apply(this); grid.Columns["value"].DefaultCellStyle.BackColor = Color.FromArgb(32, 47, 62); AppTheme.Primary(start); log.ForeColor = AppTheme.Muted; logHeading.ForeColor = AppTheme.Muted; heading.ForeColor = AppTheme.Blue; state.ForeColor = AppTheme.Blue; timer.Start(); UpdateState();
         }
@@ -208,6 +209,13 @@ namespace Switcher
             catch (Exception ex) { ShowError(ex); }
             finally { busy = false; UpdateState(); }
         }
+        async Task CheckHealth()
+        {
+            busy = true; UpdateState();
+            try { await Task.Run(() => controller.CheckConnection(backend)); }
+            catch (Exception ex) { notice = "Ожидание восстановления сети. " + ex.Message; if (ConnectionLost != null) ConnectionLost(); }
+            finally { busy = false; UpdateState(); }
+        }
         void ShowError(Exception ex) { notice = ex.Message; log.ForeColor = AppTheme.Error; UpdateState(); }
         void UpdateState()
         {
@@ -218,7 +226,7 @@ namespace Switcher
             stop.Enabled = !busy && !externalBusy && (active || recovery);
             state.Text = busy ? "Подожди…" : controller.Tunnel && controller.Alive ? "Правила работают" : recovery ? "Сеанс / восстановление" : active ? "Запуск правил" : "Выключено";
             string text = notice + "\r\n" + controller.Log;
-            if (log.Text != text) { log.Text = text; log.SelectionStart = 0; log.SelectionLength = 0; log.ScrollToCaret(); }
+            log.UpdateLog(text);
             if (StateChanged != null) StateChanged();
         }
         protected override void OnFormClosing(FormClosingEventArgs e)

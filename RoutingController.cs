@@ -49,7 +49,7 @@ namespace Switcher
         readonly Queue<string> lines = new Queue<string>();
         Process process;
         ChildJob job;
-        int port;
+        int port, connectivityFailures;
         NativeRoutingPlan plan;
         IDisposable firewall;
         readonly Func<string, uint, IDisposable> firewallFactory;
@@ -107,7 +107,7 @@ namespace Switcher
                 var windowsFirewall = firewall as TemporaryFirewall;
                 if (windowsFirewall != null) windowsFirewall.AllowTunnel("Switcher-Routing");
                 if (!Probe(15000)) throw new InvalidOperationException("Exit node не ответил после включения правил.");
-                Tunnel = true;
+                Tunnel = true; connectivityFailures = 0;
             }
             catch (Exception failure) { StopChild(); SaveDiagnostics(failure.Message); throw; }
         }
@@ -118,7 +118,9 @@ namespace Switcher
             {
                 var native = backend as INativeRoutingBackend;
                 if (native == null || !plan.SameConnection(native.ReadRoutingPlan()))
-                    throw new InvalidOperationException("Подключение изменилось. Включи правила заново.");
+                    throw new InvalidOperationException("Подключение изменилось. Ожидание восстановления сети.");
+                if (Probe(2500)) connectivityFailures = 0;
+                else if (++connectivityFailures >= 2) throw new InvalidOperationException("Нет связи через Tailscale. Ожидание восстановления сети.");
             }
             catch (Exception ex) { StopChild(); SaveDiagnostics(ex.Message); throw; }
         }

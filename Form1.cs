@@ -61,7 +61,8 @@ namespace Switcher
             icons["-"] = MakeIcon("–", AppTheme.Muted);
             icons["…"] = MakeIcon("…", AppTheme.Muted);
             var menu = new ContextMenuStrip();
-            status.Enabled = false;
+            status.Enabled = true; status.Font = new Font("Segoe UI", 11, FontStyle.Bold); status.ForeColor = AppTheme.Blue;
+            status.Click += delegate { OpenInformation("Состояние · Switcher", details); };
             menu.Items.AddRange(new ToolStripItem[] { status, new ToolStripSeparator(), toggle, tail, zap, new ToolStripSeparator() });
             menu.Items.Add("Подробности", null, delegate { OpenInformation("Подробности · Switcher", details); });
             menu.Items.Add(preferences);
@@ -79,7 +80,7 @@ namespace Switcher
             AppTheme.Menu(menu);
             tray.ContextMenuStrip = menu;
             tray.Icon = icons["…"];
-            tray.Text = "Tailscale ↔ zapret: проверка";
+            tray.Text = "Switcher: проверка";
             tray.Visible = true;
             if (needsSetup) DisplaySetupPending();
             tray.DoubleClick += delegate { Switch(null); };
@@ -117,8 +118,8 @@ namespace Switcher
         {
             string key = state.Tailscale ? (state.Zapret ? "!" : "T") : (state.Zapret ? "Z" : "-");
             tray.Icon = icons[key];
-            tray.Text = "Tailscale ↔ zapret: " + state.Label;
-            status.Text = state.Label;
+            tray.Text = "Switcher: " + state.Label;
+            status.Text = state.Tailscale ? (state.Zapret ? "Tailscale + Zapret" : "Tailscale") : state.Zapret ? "Zapret" : "Выключено";
             tail.Checked = state.Tailscale;
             zap.Checked = state.Zapret;
             details = "Состояние: " + state.Label + ".\r\nСтратегия: " + settings.Strategy + "\r\n\r\n" + settings.SwitchHotkey + " или двойной щелчок — переключить.\r\n" + settings.ExitHotkey + " — закрыть переключатель.\r\n\r\nИконка показывает состояние подключения Tailscale и службы zapret, а не доступность сайтов.\r\nПри выходе выбранный режим продолжит работать.";
@@ -130,7 +131,7 @@ namespace Switcher
         {
             details = ex.Message;
             tray.Icon = icons["?"];
-            tray.Text = "Tailscale ↔ zapret: ошибка — открой подробности";
+            tray.Text = "Switcher: ошибка — открой подробности";
             status.Text = "Ошибка проверки / переключения";
             tail.Checked = zap.Checked = false;
             // Errors remain visible in the tray status and on-demand details.
@@ -142,7 +143,7 @@ namespace Switcher
             if (routing.Active && !routing.Alive)
             {
                 switching = true; generation++;
-                try { await Task.Run(() => routing.Stop(backend)); details = "Маршрутизация остановилась. Временные исключения удалены."; }
+                try { await Task.Run(() => routing.Stop(backend)); autoRouting.Failed(DateTime.UtcNow); details = "Маршрутизация остановилась. Временные исключения удалены."; }
                 catch (Exception ex) { Error(ex, false); }
                 finally { switching = false; }
             }
@@ -150,7 +151,7 @@ namespace Switcher
             {
                 switching = true;
                 try { await Task.Run(() => routing.CheckConnection(backend)); }
-                catch (Exception ex) { Error(ex, false);  return; }
+                catch (Exception ex) { autoRouting.Failed(DateTime.UtcNow); Error(ex, false); return; }
                 finally { switching = false; }
             }
             if (routing.Active || routing.HasRecovery) { DisplayRouting(); return; }
@@ -170,7 +171,7 @@ namespace Switcher
             generation++;
             toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = false;
             tray.Icon = icons["…"];
-            tray.Text = "Tailscale ↔ zapret: переключение…";
+            tray.Text = "Switcher: переключение…";
             status.Text = "Переключение…";
             try
             {
@@ -185,7 +186,7 @@ namespace Switcher
         }
         async Task StartAutomaticRouting(State state)
         {
-            bool hasRules = false;
+            bool hasRules = false; bool ownsOperation = false; int readinessGeneration = generation;
             RoutingSettings saved = null;
             try
             {
@@ -193,16 +194,26 @@ namespace Switcher
                 saved = JsonStore.Read<RoutingSettings>(routing.SettingsPath);
                 hasRules = saved != null && saved.Rules != null && saved.Rules.Exists(rule => rule != null && rule.Enabled && rule.Target == "direct");
                 if (!autoRouting.ShouldStart(state, routing.Active, routing.HasRecovery, hasRules, DateTime.UtcNow)) return;
+                bool ready = await Task.Run(() => {
+                    try { return NativeRoutingPlan.CanReachInternet(backend.ReadRoutingPlan()); }
+                    catch (Exception) { return false; }
+                });
+                if (closing || routingWindow != null || settingsWindow != null || switching || settingsOpen || generation != readinessGeneration) return;
+                if (!autoRouting.NetworkReady(ready, DateTime.UtcNow)) {
+                    status.Text = "Tailscale · ожидание сети";
+                    tray.Text = "Switcher: ожидание восстановления сети";
+                    return;
+                }
                 // Only the built-in engine and the current exceptions schema are used automatically.
                 saved.EnginePath = BundledEngine.FilePath;
                 if (saved.DefaultTarget != "tailscale" || saved.Rules.Exists(rule => rule == null || rule.Target != "direct"))
                     throw new InvalidDataException("Открой маршрутизацию и сохрани список исключений для автоматического запуска.");
-                switching = true; generation++;
+                ownsOperation = true; switching = true; generation++;
                 toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = false;
                 tray.Icon = icons["…"]; status.Text = "Включаю исключения…";
                 await Task.Run(() => routing.StartRouting(saved, backend));
 
-                DisplayRouting();
+                autoRouting.Succeeded(); DisplayRouting();
             }
             catch (Exception ex)
             {
@@ -214,8 +225,7 @@ namespace Switcher
             }
             finally
             {
-                switching = false;
-                toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = true;
+                if (ownsOperation) { switching = false; toggle.Enabled = tail.Enabled = zap.Enabled = quit.Enabled = preferences.Enabled = true; }
             }
         }
 
@@ -243,7 +253,7 @@ namespace Switcher
         {
             bool running = routing.Tunnel && routing.Alive; if (running) autoFailure = null;
             tray.Icon = icons[running ? "R" : "?"];
-            status.Text = running ? "Маршрутизация включена" : "Маршрутизация: требуется внимание";
+            status.Text = running ? "Tailscale (R)" : "Маршрутизация: требуется внимание";
             tray.Text = "Switcher: " + status.Text;
             tail.Checked = running; zap.Checked = false;
             details = status.Text + "\r\nОткрой «Маршрутизация…» для временных исключений. Обычный Tailscale остаётся подключённым.\r\nПри выходе Switcher удалит временные исключения и адаптер.\r\n\r\n" + routing.Log;
@@ -276,7 +286,7 @@ namespace Switcher
                 if (saved.DefaultTarget != "tailscale" || saved.Rules == null || saved.Rules.Exists(rule => rule == null || rule.Target != "direct"))
                     throw new InvalidDataException("Открой маршрутизацию и сохрани список исключений.");
                 await Task.Run(() => routing.StartRouting(saved, backend));
-                DisplayRouting();
+                autoRouting.Succeeded(); DisplayRouting();
             }
             catch (Exception ex) { autoRouting.Failed(DateTime.UtcNow); Error(ex, false); }
             finally { switching = false; UpdateRoutingMenu(); }
@@ -290,6 +300,7 @@ namespace Switcher
             routingWindow = new RoutingForm(routing, backend);
             routingWindow.ManualRoutingChange += enabled => { generation++; autoFailure = null; if (enabled) autoRouting.Resume(); else autoRouting.Pause(); };
             routingWindow.StateChanged += SyncRoutingWindow;
+            routingWindow.ConnectionLost += delegate { autoRouting.Failed(DateTime.UtcNow); };
             routingWindow.FormClosed += delegate { routingWindow = null; RefreshStatus(); };
             routingWindow.Show();
             SyncRoutingWindow();

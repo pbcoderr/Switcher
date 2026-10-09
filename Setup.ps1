@@ -17,7 +17,7 @@ try {
     $exe = Join-Path $installDir 'NetworkSwitcher.exe'
     $taskName = 'TailscaleZapretSwitcher-' + $sid
     $desktop = [Environment]::GetFolderPath('DesktopDirectory')
-    $shortcutPath = Join-Path $desktop 'Tailscale - zapret.lnk'
+    $shortcutPath = Join-Path $desktop 'Switcher.lnk'
     $serviceKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\zapret'
     $settingsFile = Join-Path $installDir 'installation.json'
     $engineNames = @('LICENSE', 'COPYING', 'SOURCE.md', 'SOURCE.zip')
@@ -70,7 +70,7 @@ try {
             if (-not (Get-ChildItem -LiteralPath $resolved -Force)) { Remove-Item -LiteralPath $resolved }
         }
         Add-Type -AssemblyName System.Windows.Forms
-        [Windows.Forms.MessageBox]::Show('Switcher removed. Tailscale and zapret were not uninstalled.', 'Network Switcher') | Out-Null
+        [Windows.Forms.MessageBox]::Show('Switcher removed. Tailscale and zapret were not uninstalled.', 'Switcher') | Out-Null
         exit 0
     }
 
@@ -133,14 +133,20 @@ try {
     $shortcut.WorkingDirectory = $installDir
     $shortcut.IconLocation = $exe + ',0'
     $shortcut.WindowStyle = 7
-    $shortcut.Description = 'Tailscale / zapret switcher'
+    $shortcut.Description = 'Switcher'
     $shortcut.Save()
+    # Remove only our verified legacy shortcut during the rename.
+    $legacyPath = Join-Path $desktop 'Tailscale - zapret.lnk'
+    if (Test-Path -LiteralPath $legacyPath) {
+        $legacy = $shell.CreateShortcut($legacyPath)
+        if ($legacy.Arguments -eq $shortcut.Arguments -and $legacy.WorkingDirectory -eq $installDir) { Remove-Item -LiteralPath $legacyPath -Force }
+    }
     Start-ScheduledTask -TaskName $taskName
     Add-Type -AssemblyName System.Windows.Forms
 }
 catch {
     Add-Type -AssemblyName System.Windows.Forms
-    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Network Switcher: setup error') | Out-Null
+    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Switcher: setup error') | Out-Null
     exit 1
 }
 

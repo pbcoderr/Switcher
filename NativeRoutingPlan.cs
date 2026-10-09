@@ -33,6 +33,23 @@ namespace Switcher
                 PhysicalIndex=(uint)physical[0].GetIPProperties().GetIPv4Properties().Index, TailscaleInterface=tailscale.Name,
                 TailscaleId=tailscale.Id, NodeId=Convert.ToString(self["ID"]), ExitNodeId=Convert.ToString(exitStatus["ID"]) };
         }
+        public static bool CanReachInternet(NativeRoutingPlan plan)
+        {
+            try {
+                var adapter = NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(n => n.Id == plan.TailscaleId);
+                if (adapter == null) return false;
+                var local = adapter.GetIPProperties().UnicastAddresses.FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                if (local == null) return false;
+                using (var client = new System.Net.Sockets.TcpClient(new System.Net.IPEndPoint(local.Address, 0))) {
+                    var pending = client.BeginConnect("1.1.1.1", 443, null, null);
+                    using (pending.AsyncWaitHandle) {
+                        if (!pending.AsyncWaitHandle.WaitOne(2500)) return false;
+                        client.EndConnect(pending); return true;
+                    }
+                }
+            } catch (System.Net.Sockets.SocketException) { return false; }
+              catch (NetworkInformationException) { return false; }
+        }
         public bool SameConnection(NativeRoutingPlan other)
         { return other!=null && PhysicalId==other.PhysicalId && PhysicalIndex==other.PhysicalIndex && TailscaleId==other.TailscaleId && NodeId==other.NodeId && ExitNodeId==other.ExitNodeId; }
     }

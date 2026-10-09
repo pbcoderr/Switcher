@@ -23,6 +23,15 @@ class AutoRoutingTests
         Check(p.ShouldStart(t, false, false, true, now), "Reconnect resets pause");
         Check(!p.ShouldStart(new State(true, true), false, false, true, now), "Conflict is not routed");
         Check(!p.ShouldStart(new State(false, false), false, false, true, now), "Disconnected is not routed");
+        p.Failed(now);
+        Check(!p.NetworkReady(false, now), "offline blocks engine start");
+        Check(!p.NetworkReady(true, now.AddSeconds(60)), "recovery needs stable connection");
+        Check(!p.NetworkReady(true, now.AddSeconds(65)), "no restart on brief recovery");
+        Check(p.NetworkReady(true, now.AddSeconds(70)), "stable connection can resume");
+        p.Failed(now.AddSeconds(70));
+        Check(!p.ShouldStart(t, false, false, true, now.AddSeconds(80)), "failure backoff blocks restart loop");
+        p.Succeeded();
+        Check(p.ShouldStart(t, false, false, true, now.AddSeconds(80)), "success resets retry delay");
         Console.WriteLine("PASS " + count + " auto-routing checks");
     }
 }

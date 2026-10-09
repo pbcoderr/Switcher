@@ -26,7 +26,7 @@ namespace Switcher
             var user = WindowsIdentity.GetCurrent();
             if (!new WindowsPrincipal(user).IsInRole(WindowsBuiltInRole.Administrator))
             {
-                MessageBox.Show("Запусти Install.cmd. После установки используй ярлык «Tailscale - zapret».", "Установка переключателя");
+                MessageBox.Show("Запусти Install.cmd. После установки используй ярлык «Switcher».", "Установка переключателя");
                 return;
             }
             if (args.Length == 1 && args[0] == "--prepare-engine")

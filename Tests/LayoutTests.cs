@@ -22,7 +22,7 @@ class LayoutTests
                 var tab=(Button)Find(help,"helpTab"+i); Check(tab!=null && tab.Visible,"topic visible"); tab.PerformClick();
                 Check(!String.IsNullOrWhiteSpace(Body(help).Text),"topic has content");
             }
-            Check(Body(help).Text.Contains("1.1.0.1"),"help version updated"); help.Close();
+            Check(Body(help).Text.Contains("1.1.0.2"),"help version updated"); help.Close();
         }
         using(var controller=new RoutingController(Path.Combine(args[0],"layout")))
         using(var form=new RoutingForm(controller,null)) {

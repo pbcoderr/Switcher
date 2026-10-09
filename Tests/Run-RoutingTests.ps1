@@ -14,7 +14,7 @@ $compiler = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.
 if (-not (Test-Path -LiteralPath $compiler)) { $compiler = Join-Path $env:SystemRoot 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
 & $compiler /nologo /platform:x64 /r:System.Web.Extensions.dll /target:exe "/out:$mockRoot\sing-box.exe" (Join-Path $PSScriptRoot 'MockEngine.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Mock compilation failed.' }
-foreach ($name in @('RoutingTests', 'LifecycleTests', 'ImportTests', 'ExitNodeTests', 'AutoRoutingTests', 'RoutingUiTests', 'TunnelAddressTests', 'LayoutTests')) {
+foreach ($name in @('RoutingTests', 'LifecycleTests', 'ImportTests', 'ExitNodeTests', 'AutoRoutingTests', 'RoutingUiTests', 'TunnelAddressTests', 'LayoutTests', 'ConsoleLogTests')) {
     $testExe = Join-Path $testRoot ($name + '.exe')
     & $compiler /nologo /platform:x64 /r:System.Web.Extensions.dll /target:exe "/out:$testExe" "/r:$testRoot\Switcher.exe" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll (Join-Path $PSScriptRoot ($name + '.cs'))
     if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed.' }
