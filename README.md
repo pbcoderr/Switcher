@@ -1,5 +1,5 @@
 <div align="center">
-<img width="1280" height="640" alt="readme-banner" src="https://github.com/user-attachments/assets/c2ba23cf-9a76-41e9-a49f-10f84e5be93a" />
+<img width="1280" height="640" alt="readme-banner" src="https://github.com/pbcoderr/Switcher/blob/main/Assets/github-social-preview-1280x640.png" />
 </div>
 
 **Переключатель Tailscale ↔ zapret и маршрутизация сайтов и программ для Windows.**
